@@ -6,11 +6,13 @@
 
 #include "cmMakefile.h"
 #include "cmStateTypes.h"
+#include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 
 class cmExecutionStatus;
 
-cmFindPathCommand::cmFindPathCommand()
+cmFindPathCommand::cmFindPathCommand(cmExecutionStatus& status)
+  : cmFindBase(status)
 {
 #ifdef __OS2__
   this->EnvironmentPath = "C_INCLUDE_PATH";
@@ -21,8 +23,7 @@ cmFindPathCommand::cmFindPathCommand()
 }
 
 // cmFindPathCommand
-bool cmFindPathCommand::InitialPass(std::vector<std::string> const& argsIn,
-                                    cmExecutionStatus&)
+bool cmFindPathCommand::InitialPass(std::vector<std::string> const& argsIn)
 {
   this->VariableDocumentation = "Path to a file.";
   this->CMakePathName = "INCLUDE";
@@ -92,12 +93,8 @@ std::string cmFindPathCommand::FindHeaderInFramework(std::string const& file,
       frameWorkName.clear();
     }
     if (!frameWorkName.empty()) {
-      std::string fpath = dir;
-      fpath += frameWorkName;
-      fpath += ".framework";
-      std::string intPath = fpath;
-      intPath += "/Headers/";
-      intPath += fileName;
+      std::string fpath = cmStrCat(dir, frameWorkName, ".framework");
+      std::string intPath = cmStrCat(fpath, "/Headers/", fileName);
       if (cmSystemTools::FileExists(intPath)) {
         if (this->IncludeFileInPath) {
           return intPath;
@@ -108,9 +105,7 @@ std::string cmFindPathCommand::FindHeaderInFramework(std::string const& file,
   }
   // if it is not found yet or not a framework header, then do a glob search
   // for all frameworks in the directory: dir/*.framework/Headers/<file>
-  std::string glob = dir;
-  glob += "*.framework/Headers/";
-  glob += file;
+  std::string glob = cmStrCat(dir, "*.framework/Headers/", file);
   cmsys::Glob globIt;
   globIt.FindFiles(glob);
   std::vector<std::string> files = globIt.GetFiles();
@@ -130,8 +125,7 @@ std::string cmFindPathCommand::FindNormalHeader()
   std::string tryPath;
   for (std::string const& n : this->Names) {
     for (std::string const& sp : this->SearchPaths) {
-      tryPath = sp;
-      tryPath += n;
+      tryPath = cmStrCat(sp, n);
       if (cmSystemTools::FileExists(tryPath)) {
         if (this->IncludeFileInPath) {
           return tryPath;
@@ -154,4 +148,10 @@ std::string cmFindPathCommand::FindFrameworkHeader()
     }
   }
   return "";
+}
+
+bool cmFindPath(std::vector<std::string> const& args,
+                cmExecutionStatus& status)
+{
+  return cmFindPathCommand(status).InitialPass(args);
 }

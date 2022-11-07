@@ -449,7 +449,12 @@ if(CMAKE_USE_SECTRANSP)
 endif()
 
 if(CMAKE_USE_OPENSSL)
-  find_package(OpenSSL REQUIRED)
+  find_package(OpenSSL)
+  if(NOT OpenSSL_FOUND)
+    message(FATAL_ERROR
+      "Could not find OpenSSL. Install an OpenSSL development package or "
+      "configure CMake with -DCMAKE_USE_OPENSSL=OFF to build without OpenSSL.")
+  endif()
   set(SSL_ENABLED ON)
   set(USE_OPENSSL ON)
   set(HAVE_LIBCRYPTO ON)
@@ -834,7 +839,7 @@ endif()
 endif()
 
 # Check for header files
-if(NOT UNIX)
+if(NOT UNIX AND NOT OS2)
   check_include_file_concat("windows.h"      HAVE_WINDOWS_H)
   check_include_file_concat("winsock.h"      HAVE_WINSOCK_H)
   check_include_file_concat("ws2tcpip.h"     HAVE_WS2TCPIP_H)

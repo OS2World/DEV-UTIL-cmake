@@ -61,6 +61,10 @@ public:
   const char* GetPlatformToolsetCuda() const;
   std::string const& GetPlatformToolsetCudaString() const;
 
+  /** The custom cuda install directory */
+  const char* GetPlatformToolsetCudaCustomDir() const;
+  std::string const& GetPlatformToolsetCudaCustomDirString() const;
+
   /** Return whether we need to use No/Debug instead of false/true
       for GenerateDebugInformation.  */
   bool GetPlatformToolsetNeedsDebugEnum() const
@@ -103,6 +107,8 @@ public:
 
   virtual bool IsDefaultToolset(const std::string& version) const;
   virtual std::string GetAuxiliaryToolset() const;
+
+  bool GetSupportsUnityBuilds() const { return this->SupportsUnityBuilds; }
 
   bool FindMakeProgram(cmMakefile* mf) override;
 
@@ -152,6 +158,7 @@ protected:
   std::string GeneratorToolsetVersion;
   std::string GeneratorToolsetHostArchitecture;
   std::string GeneratorToolsetCuda;
+  std::string GeneratorToolsetCudaCustomDir;
   std::string DefaultPlatformToolset;
   std::string DefaultPlatformToolsetHostArchitecture;
   std::string WindowsTargetPlatformVersion;
@@ -167,6 +174,7 @@ protected:
   std::string DefaultMasmFlagTableName;
   std::string DefaultNasmFlagTableName;
   std::string DefaultRCFlagTableName;
+  bool SupportsUnityBuilds = false;
   bool SystemIsWindowsCE;
   bool SystemIsWindowsPhone;
   bool SystemIsWindowsStore;
