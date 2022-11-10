@@ -1,0 +1,2 @@
+u:/extras/bin/ar.exe qc cmjsoncpp.a  CMakeFiles/cmjsoncpp.dir/src/lib_json/json_reader.cpp.o CMakeFiles/cmjsoncpp.dir/src/lib_json/json_value.cpp.o CMakeFiles/cmjsoncpp.dir/src/lib_json/json_writer.cpp.o
+u:/extras/bin/ranlib.exe cmjsoncpp.a

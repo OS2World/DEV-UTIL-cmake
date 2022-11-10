@@ -1,0 +1,19 @@
+Determining if the function wsyncup exists in the U:/EMX/lib/curses.a failed with the following output:
+Change Dir: U:/DEV/cmake-os2/Source/Checks/Curses-build/CMakeFiles/CMakeTmp
+
+Run Build Command(s):E:/USR/BIN/make.exe cmTC_8749f/fast && make  -f CMakeFiles/cmTC_8749f.dir/build.make CMakeFiles/cmTC_8749f.dir/build
+make[1]: Entering directory `U:/dev/cmake-os2/Source/Checks/Curses-build/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_8749f.dir/CheckFunctionExists.c.o
+U:/usr/local1220/bin/gcc.exe   -DCHECK_FUNCTION_EXISTS=wsyncup   -o CMakeFiles/cmTC_8749f.dir/CheckFunctionExists.c.o   -c U:/DEV/cmake-os2/Modules/CheckFunctionExists.c
+Linking C executable cmTC_8749f.exe
+echo NAME \"cmTC_8749f\"  > cmTC_8749f.def && echo DESCRIPTION \"@#cmake build system:0.0#@##1## 07 Nov 2022 18:49:16\ \ \ \ \ SMEDLES::::0::@@cmTC_8749f\" >> cmTC_8749f.def && echo  >> cmTC_8749f.def && U:/usr/local1220/bin/gcc.exe  -DCHECK_FUNCTION_EXISTS=wsyncup -Zomf -Zomf -Zlinker DISABLE -Zlinker 1121 -lcx  @CMakeFiles/cmTC_8749f.dir/objects1.rsp -o cmTC_8749f.exe   U:/EMX/lib/curses.a  cmTC_8749f.def
+weakld: error: Unresolved symbol (UNDEF) '_wsyncup'.
+weakld: info: The symbol is referenced by:
+    U:\tmp\ldconv_CheckFunctionExists_c_o_f5516368bf84158610.obj
+Ignoring unresolved externals reported from weak prelinker.
+make[1]: *** [cmTC_8749f.exe] Error 1
+make[1]: Leaving directory `U:/dev/cmake-os2/Source/Checks/Curses-build/CMakeFiles/CMakeTmp'
+make.exe: *** [cmTC_8749f/fast] Error 2
+
+
+

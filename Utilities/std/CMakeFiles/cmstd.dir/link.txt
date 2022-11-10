@@ -1,0 +1,2 @@
+u:/extras/bin/ar.exe qc cmstd.a  CMakeFiles/cmstd.dir/cm/bits/string_view.cxx.o
+u:/extras/bin/ranlib.exe cmstd.a

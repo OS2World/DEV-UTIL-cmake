@@ -1,0 +1,6 @@
+-IU:/DEV/cmake-os2/Utilities
+-IU:/DEV/cmake-os2/Utilities/cmzstd/lib
+-IU:/DEV/cmake-os2/Utilities/cmzstd/lib/common
+-isystem
+U:/DEV/cmake-os2/Utilities/std
+

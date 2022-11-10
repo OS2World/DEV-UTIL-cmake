@@ -1,0 +1,5 @@
+-IU:/DEV/cmake-os2/Utilities
+-IU:/DEV/cmake-os2/Utilities/cmcurl/include
+-isystem
+U:/DEV/cmake-os2/Utilities/std
+

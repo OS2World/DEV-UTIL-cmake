@@ -1,0 +1,2 @@
+u:/extras/bin/ar.exe qc cmexpat.a  CMakeFiles/cmexpat.dir/lib/xmlparse.c.o CMakeFiles/cmexpat.dir/lib/xmlrole.c.o CMakeFiles/cmexpat.dir/lib/xmltok.c.o CMakeFiles/cmexpat.dir/lib/xmltok_impl.c.o CMakeFiles/cmexpat.dir/lib/xmltok_ns.c.o
+u:/extras/bin/ranlib.exe cmexpat.a

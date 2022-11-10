@@ -1,0 +1,8 @@
+-IU:/DEV/cmake-os2/Utilities
+-IU:/DEV/cmake-os2/Utilities/cmlibuv/include
+-IU:/DEV/cmake-os2/Utilities/cmlibuv/src
+-IU:/DEV/cmake-os2/Utilities/cmlibuv/src/unix
+-IU:/DEV/cmake-os2/Source
+-isystem
+U:/DEV/cmake-os2/Utilities/std
+
