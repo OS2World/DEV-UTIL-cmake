@@ -1,2 +1,0 @@
-u:/extras/bin/ar.exe qc cmbzip2.a  CMakeFiles/cmbzip2.dir/blocksort.c.o CMakeFiles/cmbzip2.dir/huffman.c.o CMakeFiles/cmbzip2.dir/crctable.c.o CMakeFiles/cmbzip2.dir/randtable.c.o CMakeFiles/cmbzip2.dir/compress.c.o CMakeFiles/cmbzip2.dir/decompress.c.o CMakeFiles/cmbzip2.dir/bzlib.c.o
-u:/extras/bin/ranlib.exe cmbzip2.a

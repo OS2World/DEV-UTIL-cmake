@@ -1,9 +1,0 @@
--IU:/DEV/cmake-os2/Utilities/cmlibarchive/libarchive
--IU:/DEV/cmake-os2/Utilities/cmlibarchive
--IU:/DEV/cmake-os2/Utilities
--IU:/DEV/cmake-os2/Utilities/cmbzip2
--IU:/DEV/cmake-os2/Utilities/cmliblzma/liblzma/api
--IU:/DEV/cmake-os2/Utilities/cmzstd
--isystem
-U:/DEV/cmake-os2/Utilities/std
-

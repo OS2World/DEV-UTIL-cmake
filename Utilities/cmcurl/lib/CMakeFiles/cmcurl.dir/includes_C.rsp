@@ -1,8 +1,0 @@
--IU:/DEV/cmake-os2/Utilities
--IU:/DEV/cmake-os2/Utilities/cmcurl/include
--IU:/DEV/cmake-os2/Utilities/cmcurl/lib/../include
--IU:/DEV/cmake-os2/Utilities/cmcurl/lib/..
--IU:/DEV/cmake-os2/Utilities/cmcurl/lib
--isystem
-U:/DEV/cmake-os2/Utilities/std
-
