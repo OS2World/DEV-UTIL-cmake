@@ -42,10 +42,10 @@ cmake_force:
 SHELL = sh
 
 # The CMake executable.
-CMAKE_COMMAND = U:/dev/cmake-os2/Bootstrap.cmk/cmake.exe
+CMAKE_COMMAND = U:/DEV/cmake-os2/Bootstrap.cmk/cmake.exe
 
 # The command to remove a file.
-RM = U:/dev/cmake-os2/Bootstrap.cmk/cmake.exe -E remove -f
+RM = U:/DEV/cmake-os2/Bootstrap.cmk/cmake.exe -E remove -f
 
 # Escaping for special characters.
 EQUALS = =

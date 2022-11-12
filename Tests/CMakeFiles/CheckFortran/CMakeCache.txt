@@ -35,7 +35,7 @@ CMAKE_COLOR_MAKEFILE:BOOL=ON
 CMAKE_DLLTOOL:FILEPATH=CMAKE_DLLTOOL-NOTFOUND
 
 //Flags used by the linker during all build types.
-CMAKE_EXE_LINKER_FLAGS:STRING=-Zomf -Zlinker DISABLE -Zlinker 1121 -lcx
+CMAKE_EXE_LINKER_FLAGS:STRING=-Zomf -Zlinker DISABLE -Zlinker 1121
 
 //Flags used by the linker during DEBUG builds.
 CMAKE_EXE_LINKER_FLAGS_DEBUG:STRING=
@@ -89,7 +89,7 @@ CMAKE_MAKE_PROGRAM:FILEPATH=E:/USR/BIN/make.exe
 
 //Flags used by the linker during the creation of modules during
 // all build types.
-CMAKE_MODULE_LINKER_FLAGS:STRING=-Zomf -Zdll -Zlinker DISABLE -Zlinker 1121 -lcx
+CMAKE_MODULE_LINKER_FLAGS:STRING=-Zomf -Zdll -Zlinker DISABLE -Zlinker 1121
 
 //Flags used by the linker during the creation of modules during
 // DEBUG builds.
@@ -133,7 +133,7 @@ CMAKE_READELF:FILEPATH=u:/extras/bin/readelf.exe
 
 //Flags used by the linker during the creation of shared libraries
 // during all build types.
-CMAKE_SHARED_LINKER_FLAGS:STRING=-Zomf -Zdll -Zlinker DISABLE -Zlinker 1121 -lcx
+CMAKE_SHARED_LINKER_FLAGS:STRING=-Zomf -Zdll -Zlinker DISABLE -Zlinker 1121
 
 //Flags used by the linker during the creation of shared libraries
 // during DEBUG builds.
@@ -297,7 +297,7 @@ CMAKE_RANLIB-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_READELF
 CMAKE_READELF-ADVANCED:INTERNAL=1
 //Path to CMake installation.
-CMAKE_ROOT:INTERNAL=U:/DEV/cmake-os2
+CMAKE_ROOT:INTERNAL=U:/dev/cmake-os2
 //ADVANCED property for variable: CMAKE_SHARED_LINKER_FLAGS
 CMAKE_SHARED_LINKER_FLAGS-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_SHARED_LINKER_FLAGS_DEBUG

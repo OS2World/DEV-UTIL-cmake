@@ -16,8 +16,8 @@ Thread model: os2
 Supported LTO compression algorithms: zlib
 gcc version 12.2.0 (GCC) 
 COLLECT_GCC_OPTIONS='-pipe' '-v' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'a-'
- U:/usr/local1220/bin/../libexec/gcc/i686-pc-os2-emx/12.2.0/f951.exe CMakeFortranCompilerId.F -ffixed-form -cpp=u:\tmp/ccQEQZtW.f90 -quiet -v -iprefix U:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/ CMakeFortranCompilerId.F -quiet -dumpdir a- -dumpbase CMakeFortranCompilerId.F -dumpbase-ext .F -mtune=generic -march=pentiumpro -version -fintrinsic-modules-path U:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/finclude -o - |
- as -v --traditional-format -o u:\tmp/cc5GlPx7.o
+ U:/usr/local1220/bin/../libexec/gcc/i686-pc-os2-emx/12.2.0/f951.exe CMakeFortranCompilerId.F -ffixed-form -cpp=u:\tmp/cceJdrZL.f90 -quiet -v -iprefix U:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/ CMakeFortranCompilerId.F -quiet -dumpdir a- -dumpbase CMakeFortranCompilerId.F -dumpbase-ext .F -mtune=generic -march=pentiumpro -version -fintrinsic-modules-path U:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/finclude -o - |
+ as -v --traditional-format -o u:\tmp/cc2QB53O.o
 GNU assembler version 2.33.1 (i386-pc-os2-emx) using BFD version (GNU Binutils) 2.33.1
 GNU Fortran (GCC) version 12.2.0 (i686-pc-os2-emx)
 	compiled by GNU C version 12.2.0, GMP version 5.1.2, MPFR version 3.1.2, MPC version 1.0.1, isl version none
@@ -50,7 +50,7 @@ COLLECT_GCC_OPTIONS='-pipe' '-v' '-mtune=generic' '-march=pentiumpro' '-dumpdir'
 COMPILER_PATH=U:/usr/local1220/bin/../libexec/gcc/i686-pc-os2-emx/12.2.0/;U:/usr/local1220/bin/../libexec/gcc/
 LIBRARY_PATH=U:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/;U:/usr/local1220/bin/../lib/gcc/;u:/usr/local1220/lib/;U:/usr/lib/;u:/extras/lib/;u:/openldap/lib/;c:/os2/dll/;c:/mptn/dll/;U:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/../../../;/lib/;/usr/lib/
 COLLECT_GCC_OPTIONS='-pipe' '-v' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'a.'
- ld.exe -o a.exe U:/usr/lib/crt0.o -LU:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0 -LU:/usr/local1220/bin/../lib/gcc -Lu:/usr/local1220/lib -LU:/usr/lib -Lu:/extras/lib -Lu:/openldap/lib -Lc:/os2/dll -Lc:/mptn/dll -LU:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/../../.. u:\tmp/cc5GlPx7.o -lgfortran -lm -lgcc_so_d -lquadmath -lm -lgcc_so_d -lc_alias -lc_dll -los2 -lgcc_so_d -lquadmath -lm -lgcc_so_d -lc_alias -lc_dll -los2 -lgcc_so_d -lquadmath -lm -lgcc_so_d -lc_alias -lc_dll -los2 -lgcc_so_d -lquadmath -lm -lgcc_so_d -lc_alias -lc_dll -los2
+ ld.exe -o a.exe U:/usr/lib/crt0.o -LU:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0 -LU:/usr/local1220/bin/../lib/gcc -Lu:/usr/local1220/lib -LU:/usr/lib -Lu:/extras/lib -Lu:/openldap/lib -Lc:/os2/dll -Lc:/mptn/dll -LU:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/../../.. u:\tmp/cc2QB53O.o -lgfortran -lm -lgcc_so_d -lquadmath -lm -lgcc_so_d -lc_alias -lc_dll -los2 -lgcc_so_d -lquadmath -lm -lgcc_so_d -lc_alias -lc_dll -los2 -lgcc_so_d -lquadmath -lm -lgcc_so_d -lc_alias -lc_dll -los2 -lgcc_so_d -lquadmath -lm -lgcc_so_d -lc_alias -lc_dll -los2
 COLLECT_GCC_OPTIONS='-pipe' '-v' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'a.'
 
 
@@ -61,12 +61,12 @@ The Fortran compiler identification is GNU, found in "U:/dev/cmake-os2/Tests/CMa
 Determining if the Fortran compiler works passed with the following output:
 Change Dir: U:/dev/cmake-os2/Tests/CMakeFiles/CheckFortran/CMakeFiles/CMakeTmp
 
-Run Build Command(s):E:/USR/BIN/make.exe cmTC_849b6/fast && make  -f CMakeFiles/cmTC_849b6.dir/build.make CMakeFiles/cmTC_849b6.dir/build
+Run Build Command(s):E:/USR/BIN/make.exe cmTC_ff276/fast && make  -f CMakeFiles/cmTC_ff276.dir/build.make CMakeFiles/cmTC_ff276.dir/build
 make[1]: Entering directory `U:/dev/cmake-os2/Tests/CMakeFiles/CheckFortran/CMakeFiles/CMakeTmp'
-Building Fortran object CMakeFiles/cmTC_849b6.dir/testFortranCompiler.f.obj
-U:/usr/local1220/bin/gfortran.exe    -c U:/dev/cmake-os2/Tests/CMakeFiles/CheckFortran/CMakeFiles/CMakeTmp/testFortranCompiler.f -o CMakeFiles/cmTC_849b6.dir/testFortranCompiler.f.obj
-Linking Fortran executable cmTC_849b6.exe
-U:/usr/local1220/bin/gfortran.exe  -Zomf -Zlinker DISABLE -Zlinker 1121 -lcx    "CMakeFiles/cmTC_849b6.dir/testFortranCompiler.f.obj"   -o cmTC_849b6.exe 
+Building Fortran object CMakeFiles/cmTC_ff276.dir/testFortranCompiler.f.obj
+U:/usr/local1220/bin/gfortran.exe    -c U:/dev/cmake-os2/Tests/CMakeFiles/CheckFortran/CMakeFiles/CMakeTmp/testFortranCompiler.f -o CMakeFiles/cmTC_ff276.dir/testFortranCompiler.f.obj
+Linking Fortran executable cmTC_ff276.exe
+U:/usr/local1220/bin/gfortran.exe  -Zomf -Zlinker DISABLE -Zlinker 1121    "CMakeFiles/cmTC_ff276.dir/testFortranCompiler.f.obj"   -o cmTC_ff276.exe 
 make[1]: Leaving directory `U:/dev/cmake-os2/Tests/CMakeFiles/CheckFortran/CMakeFiles/CMakeTmp'
 
 
@@ -74,10 +74,10 @@ make[1]: Leaving directory `U:/dev/cmake-os2/Tests/CMakeFiles/CheckFortran/CMake
 Detecting Fortran compiler ABI info compiled with the following output:
 Change Dir: U:/dev/cmake-os2/Tests/CMakeFiles/CheckFortran/CMakeFiles/CMakeTmp
 
-Run Build Command(s):E:/USR/BIN/make.exe cmTC_849b1/fast && make  -f CMakeFiles/cmTC_849b1.dir/build.make CMakeFiles/cmTC_849b1.dir/build
+Run Build Command(s):E:/USR/BIN/make.exe cmTC_ff277/fast && make  -f CMakeFiles/cmTC_ff277.dir/build.make CMakeFiles/cmTC_ff277.dir/build
 make[1]: Entering directory `U:/dev/cmake-os2/Tests/CMakeFiles/CheckFortran/CMakeFiles/CMakeTmp'
-Building Fortran object CMakeFiles/cmTC_849b1.dir/CMakeFortranCompilerABI.F.obj
-U:/usr/local1220/bin/gfortran.exe   -v -c U:/DEV/cmake-os2/Modules/CMakeFortranCompilerABI.F -o CMakeFiles/cmTC_849b1.dir/CMakeFortranCompilerABI.F.obj
+Building Fortran object CMakeFiles/cmTC_ff277.dir/CMakeFortranCompilerABI.F.obj
+U:/usr/local1220/bin/gfortran.exe   -v -c U:/dev/cmake-os2/Modules/CMakeFortranCompilerABI.F -o CMakeFiles/cmTC_ff277.dir/CMakeFortranCompilerABI.F.obj
 Using built-in specs.
 COLLECT_GCC=U:/usr/local1220/bin/gfortran.exe
 Target: i686-pc-os2-emx
@@ -85,10 +85,9 @@ Configured with: ./configure --prefix=/usr/local1220 --enable-shared --enable-la
 Thread model: os2
 Supported LTO compression algorithms: zlib
 gcc version 12.2.0 (GCC) 
-COLLECT_GCC_OPTIONS='-pipe' '-v' '-c' '-o' 'CMakeFiles/cmTC_849b1.dir/CMakeFortranCompilerABI.F.obj' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'CMakeFiles/cmTC_849b1.dir/'
- U:/usr/local1220/bin/../libexec/gcc/i686-pc-os2-emx/12.2.0/f951.exe U:/DEV/cmake-os2/Modules/CMakeFortranCompilerABI.F -ffixed-form -cpp=u:\tmp/cczbZ40r.f90 -quiet -v -iprefix U:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/ U:/DEV/cmake-os2/Modules/CMakeFortranCompilerABI.F -quiet -dumpdir CMakeFiles/cmTC_849b1.dir/ -dumpbase CMakeFortranCompilerABI.F.F -dumpbase-ext .F -mtune=generic -march=pentiumpro -version -fintrinsic-modules-path U:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/finclude -o - |
- as -v --traditional-format -o CMakeFiles/cmTC_849b1.dir/CMakeFortranCompilerABI.F.obj
-GNU assembler version 2.33.1 (i386-pc-os2-emx) using BFD version (GNU Binutils) 2.33.1
+COLLECT_GCC_OPTIONS='-pipe' '-v' '-c' '-o' 'CMakeFiles/cmTC_ff277.dir/CMakeFortranCompilerABI.F.obj' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'CMakeFiles/cmTC_ff277.dir/'
+ U:/usr/local1220/bin/../libexec/gcc/i686-pc-os2-emx/12.2.0/f951.exe U:/dev/cmake-os2/Modules/CMakeFortranCompilerABI.F -ffixed-form -cpp=u:\tmp/cc5yM2eE.f90 -quiet -v -iprefix U:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/ U:/dev/cmake-os2/Modules/CMakeFortranCompilerABI.F -quiet -dumpdir CMakeFiles/cmTC_ff277.dir/ -dumpbase CMakeFortranCompilerABI.F.F -dumpbase-ext .F -mtune=generic -march=pentiumpro -version -fintrinsic-modules-path U:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/finclude -o - |
+ as -v --traditional-format -o CMakeFiles/cmTC_ff277.dir/CMakeFortranCompilerABI.F.obj
 GNU Fortran (GCC) version 12.2.0 (i686-pc-os2-emx)
 	compiled by GNU C version 12.2.0, GMP version 5.1.2, MPFR version 3.1.2, MPC version 1.0.1, isl version none
 GGC heuristics: --param ggc-min-expand=30 --param ggc-min-heapsize=4096
@@ -114,12 +113,13 @@ End of search list.
 GNU Fortran2008 (GCC) version 12.2.0 (i686-pc-os2-emx)
 	compiled by GNU C version 12.2.0, GMP version 5.1.2, MPFR version 3.1.2, MPC version 1.0.1, isl version none
 GGC heuristics: --param ggc-min-expand=30 --param ggc-min-heapsize=4096
+GNU assembler version 2.33.1 (i386-pc-os2-emx) using BFD version (GNU Binutils) 2.33.1
 COMPILER_PATH=U:/usr/local1220/bin/../libexec/gcc/i686-pc-os2-emx/12.2.0/;U:/usr/local1220/bin/../libexec/gcc/
 LIBRARY_PATH=U:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/;U:/usr/local1220/bin/../lib/gcc/;u:/usr/local1220/lib/;U:/usr/lib/;u:/extras/lib/;u:/openldap/lib/;c:/os2/dll/;c:/mptn/dll/;U:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/../../../;/lib/;/usr/lib/
-COLLECT_GCC_OPTIONS='-pipe' '-v' '-c' '-o' 'CMakeFiles/cmTC_849b1.dir/CMakeFortranCompilerABI.F.obj' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'CMakeFiles/cmTC_849b1.dir/CMakeFortranCompilerABI.F.'
-Linking Fortran executable cmTC_849b1.exe
-U:/usr/local1220/bin/gfortran.exe  -Zomf -Zlinker DISABLE -Zlinker 1121 -lcx -v   "CMakeFiles/cmTC_849b1.dir/CMakeFortranCompilerABI.F.obj"   -o cmTC_849b1.exe 
-Driving: U:/usr/local1220/bin/gfortran.exe -pipe -Zomf -Xlinker -O -Xlinker DISABLE -Xlinker -O -Xlinker 1121 -lcx -v CMakeFiles/cmTC_849b1.dir/CMakeFortranCompilerABI.F.obj -o cmTC_849b1.exe -l gfortran -l m
+COLLECT_GCC_OPTIONS='-pipe' '-v' '-c' '-o' 'CMakeFiles/cmTC_ff277.dir/CMakeFortranCompilerABI.F.obj' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'CMakeFiles/cmTC_ff277.dir/CMakeFortranCompilerABI.F.'
+Linking Fortran executable cmTC_ff277.exe
+U:/usr/local1220/bin/gfortran.exe  -Zomf -Zlinker DISABLE -Zlinker 1121 -v   "CMakeFiles/cmTC_ff277.dir/CMakeFortranCompilerABI.F.obj"   -o cmTC_ff277.exe 
+Driving: U:/usr/local1220/bin/gfortran.exe -pipe -Zomf -Xlinker -O -Xlinker DISABLE -Xlinker -O -Xlinker 1121 -v CMakeFiles/cmTC_ff277.dir/CMakeFortranCompilerABI.F.obj -o cmTC_ff277.exe -l gfortran -l m
 Using built-in specs.
 COLLECT_GCC=U:/usr/local1220/bin/gfortran.exe
 COLLECT_LTO_WRAPPER=U:/usr/local1220/bin/../libexec/gcc/i686-pc-os2-emx/12.2.0/lto-wrapper.exe
@@ -130,12 +130,12 @@ Supported LTO compression algorithms: zlib
 gcc version 12.2.0 (GCC) 
 Reading specs from u:/usr/local1220/lib/libgfortran.spec
 rename spec lib to liborig
-COLLECT_GCC_OPTIONS='-pipe' '-Zomf' '-v' '-o' 'cmTC_849b1.exe' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'cmTC_849b1-'
+COLLECT_GCC_OPTIONS='-pipe' '-Zomf' '-v' '-o' 'cmTC_ff277.exe' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'cmTC_ff277-'
 COMPILER_PATH=U:/usr/local1220/bin/../libexec/gcc/i686-pc-os2-emx/12.2.0/;U:/usr/local1220/bin/../libexec/gcc/
 LIBRARY_PATH=U:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/;U:/usr/local1220/bin/../lib/gcc/;u:/usr/local1220/lib/;U:/usr/lib/;u:/extras/lib/;u:/openldap/lib/;c:/os2/dll/;c:/mptn/dll/;U:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/../../../;/lib/;/usr/lib/
-COLLECT_GCC_OPTIONS='-pipe' '-Zomf' '-v' '-o' 'cmTC_849b1.exe' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'cmTC_849b1.'
- emxomfld.exe -o cmTC_849b1.exe U:/usr/lib/crt0.obj -LU:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0 -LU:/usr/local1220/bin/../lib/gcc -Lu:/usr/local1220/lib -LU:/usr/lib -Lu:/extras/lib -Lu:/openldap/lib -Lc:/os2/dll -Lc:/mptn/dll -LU:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/../../.. -O DISABLE -O 1121 -lcx CMakeFiles/cmTC_849b1.dir/CMakeFortranCompilerABI.F.obj -lgfortran -lm -lgcc_so_d -lquadmath -lm -lgcc_so_d -lc_alias -lc_dll -los2 -lend
-COLLECT_GCC_OPTIONS='-pipe' '-Zomf' '-v' '-o' 'cmTC_849b1.exe' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'cmTC_849b1.'
+COLLECT_GCC_OPTIONS='-pipe' '-Zomf' '-v' '-o' 'cmTC_ff277.exe' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'cmTC_ff277.'
+ emxomfld.exe -o cmTC_ff277.exe U:/usr/lib/crt0.obj -LU:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0 -LU:/usr/local1220/bin/../lib/gcc -Lu:/usr/local1220/lib -LU:/usr/lib -Lu:/extras/lib -Lu:/openldap/lib -Lc:/os2/dll -Lc:/mptn/dll -LU:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/../../.. -O DISABLE -O 1121 CMakeFiles/cmTC_ff277.dir/CMakeFortranCompilerABI.F.obj -lgfortran -lm -lgcc_so_d -lquadmath -lm -lgcc_so_d -lc_alias -lc_dll -los2 -lend
+COLLECT_GCC_OPTIONS='-pipe' '-Zomf' '-v' '-o' 'cmTC_ff277.exe' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'cmTC_ff277.'
 make[1]: Leaving directory `U:/dev/cmake-os2/Tests/CMakeFiles/CheckFortran/CMakeFiles/CMakeTmp'
 
 
@@ -175,10 +175,10 @@ Parsed Fortran implicit link information from above output:
   link line regex: [^( *|.*[/\])(ld\.exe|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\]+-)?ld|collect2)[^/\]*( |$)]
   ignore line: [Change Dir: U:/dev/cmake-os2/Tests/CMakeFiles/CheckFortran/CMakeFiles/CMakeTmp]
   ignore line: []
-  ignore line: [Run Build Command(s):E:/USR/BIN/make.exe cmTC_849b1/fast && make  -f CMakeFiles/cmTC_849b1.dir/build.make CMakeFiles/cmTC_849b1.dir/build]
+  ignore line: [Run Build Command(s):E:/USR/BIN/make.exe cmTC_ff277/fast && make  -f CMakeFiles/cmTC_ff277.dir/build.make CMakeFiles/cmTC_ff277.dir/build]
   ignore line: [make[1]: Entering directory `U:/dev/cmake-os2/Tests/CMakeFiles/CheckFortran/CMakeFiles/CMakeTmp']
-  ignore line: [Building Fortran object CMakeFiles/cmTC_849b1.dir/CMakeFortranCompilerABI.F.obj]
-  ignore line: [U:/usr/local1220/bin/gfortran.exe   -v -c U:/DEV/cmake-os2/Modules/CMakeFortranCompilerABI.F -o CMakeFiles/cmTC_849b1.dir/CMakeFortranCompilerABI.F.obj]
+  ignore line: [Building Fortran object CMakeFiles/cmTC_ff277.dir/CMakeFortranCompilerABI.F.obj]
+  ignore line: [U:/usr/local1220/bin/gfortran.exe   -v -c U:/dev/cmake-os2/Modules/CMakeFortranCompilerABI.F -o CMakeFiles/cmTC_ff277.dir/CMakeFortranCompilerABI.F.obj]
   ignore line: [Using built-in specs.]
   ignore line: [COLLECT_GCC=U:/usr/local1220/bin/gfortran.exe]
   ignore line: [Target: i686-pc-os2-emx]
@@ -186,10 +186,9 @@ Parsed Fortran implicit link information from above output:
   ignore line: [Thread model: os2]
   ignore line: [Supported LTO compression algorithms: zlib]
   ignore line: [gcc version 12.2.0 (GCC) ]
-  ignore line: [COLLECT_GCC_OPTIONS='-pipe' '-v' '-c' '-o' 'CMakeFiles/cmTC_849b1.dir/CMakeFortranCompilerABI.F.obj' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'CMakeFiles/cmTC_849b1.dir/']
-  ignore line: [ U:/usr/local1220/bin/../libexec/gcc/i686-pc-os2-emx/12.2.0/f951.exe U:/DEV/cmake-os2/Modules/CMakeFortranCompilerABI.F -ffixed-form -cpp=u:\tmp/cczbZ40r.f90 -quiet -v -iprefix U:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/ U:/DEV/cmake-os2/Modules/CMakeFortranCompilerABI.F -quiet -dumpdir CMakeFiles/cmTC_849b1.dir/ -dumpbase CMakeFortranCompilerABI.F.F -dumpbase-ext .F -mtune=generic -march=pentiumpro -version -fintrinsic-modules-path U:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/finclude -o - |]
-  ignore line: [ as -v --traditional-format -o CMakeFiles/cmTC_849b1.dir/CMakeFortranCompilerABI.F.obj]
-  ignore line: [GNU assembler version 2.33.1 (i386-pc-os2-emx) using BFD version (GNU Binutils) 2.33.1]
+  ignore line: [COLLECT_GCC_OPTIONS='-pipe' '-v' '-c' '-o' 'CMakeFiles/cmTC_ff277.dir/CMakeFortranCompilerABI.F.obj' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'CMakeFiles/cmTC_ff277.dir/']
+  ignore line: [ U:/usr/local1220/bin/../libexec/gcc/i686-pc-os2-emx/12.2.0/f951.exe U:/dev/cmake-os2/Modules/CMakeFortranCompilerABI.F -ffixed-form -cpp=u:\tmp/cc5yM2eE.f90 -quiet -v -iprefix U:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/ U:/dev/cmake-os2/Modules/CMakeFortranCompilerABI.F -quiet -dumpdir CMakeFiles/cmTC_ff277.dir/ -dumpbase CMakeFortranCompilerABI.F.F -dumpbase-ext .F -mtune=generic -march=pentiumpro -version -fintrinsic-modules-path U:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/finclude -o - |]
+  ignore line: [ as -v --traditional-format -o CMakeFiles/cmTC_ff277.dir/CMakeFortranCompilerABI.F.obj]
   ignore line: [GNU Fortran (GCC) version 12.2.0 (i686-pc-os2-emx)]
   ignore line: [	compiled by GNU C version 12.2.0  GMP version 5.1.2  MPFR version 3.1.2  MPC version 1.0.1  isl version none]
   ignore line: [GGC heuristics: --param ggc-min-expand=30 --param ggc-min-heapsize=4096]
@@ -215,6 +214,7 @@ Parsed Fortran implicit link information from above output:
   ignore line: [GNU Fortran2008 (GCC) version 12.2.0 (i686-pc-os2-emx)]
   ignore line: [	compiled by GNU C version 12.2.0  GMP version 5.1.2  MPFR version 3.1.2  MPC version 1.0.1  isl version none]
   ignore line: [GGC heuristics: --param ggc-min-expand=30 --param ggc-min-heapsize=4096]
+  ignore line: [GNU assembler version 2.33.1 (i386-pc-os2-emx) using BFD version (GNU Binutils) 2.33.1]
   ignore line: [COMPILER_PATH=U:/usr/local1220/bin/../libexec/gcc/i686-pc-os2-emx/12.2.0/]
   ignore line: [U:/usr/local1220/bin/../libexec/gcc/]
   ignore line: [LIBRARY_PATH=U:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/]
@@ -228,10 +228,10 @@ Parsed Fortran implicit link information from above output:
   ignore line: [U:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/../../../]
   ignore line: [/lib/]
   ignore line: [/usr/lib/]
-  ignore line: [COLLECT_GCC_OPTIONS='-pipe' '-v' '-c' '-o' 'CMakeFiles/cmTC_849b1.dir/CMakeFortranCompilerABI.F.obj' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'CMakeFiles/cmTC_849b1.dir/CMakeFortranCompilerABI.F.']
-  ignore line: [Linking Fortran executable cmTC_849b1.exe]
-  ignore line: [U:/usr/local1220/bin/gfortran.exe  -Zomf -Zlinker DISABLE -Zlinker 1121 -lcx -v   "CMakeFiles/cmTC_849b1.dir/CMakeFortranCompilerABI.F.obj"   -o cmTC_849b1.exe ]
-  ignore line: [Driving: U:/usr/local1220/bin/gfortran.exe -pipe -Zomf -Xlinker -O -Xlinker DISABLE -Xlinker -O -Xlinker 1121 -lcx -v CMakeFiles/cmTC_849b1.dir/CMakeFortranCompilerABI.F.obj -o cmTC_849b1.exe -l gfortran -l m]
+  ignore line: [COLLECT_GCC_OPTIONS='-pipe' '-v' '-c' '-o' 'CMakeFiles/cmTC_ff277.dir/CMakeFortranCompilerABI.F.obj' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'CMakeFiles/cmTC_ff277.dir/CMakeFortranCompilerABI.F.']
+  ignore line: [Linking Fortran executable cmTC_ff277.exe]
+  ignore line: [U:/usr/local1220/bin/gfortran.exe  -Zomf -Zlinker DISABLE -Zlinker 1121 -v   "CMakeFiles/cmTC_ff277.dir/CMakeFortranCompilerABI.F.obj"   -o cmTC_ff277.exe ]
+  ignore line: [Driving: U:/usr/local1220/bin/gfortran.exe -pipe -Zomf -Xlinker -O -Xlinker DISABLE -Xlinker -O -Xlinker 1121 -v CMakeFiles/cmTC_ff277.dir/CMakeFortranCompilerABI.F.obj -o cmTC_ff277.exe -l gfortran -l m]
   ignore line: [Using built-in specs.]
   ignore line: [COLLECT_GCC=U:/usr/local1220/bin/gfortran.exe]
   ignore line: [COLLECT_LTO_WRAPPER=U:/usr/local1220/bin/../libexec/gcc/i686-pc-os2-emx/12.2.0/lto-wrapper.exe]
@@ -242,7 +242,7 @@ Parsed Fortran implicit link information from above output:
   ignore line: [gcc version 12.2.0 (GCC) ]
   ignore line: [Reading specs from u:/usr/local1220/lib/libgfortran.spec]
   ignore line: [rename spec lib to liborig]
-  ignore line: [COLLECT_GCC_OPTIONS='-pipe' '-Zomf' '-v' '-o' 'cmTC_849b1.exe' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'cmTC_849b1-']
+  ignore line: [COLLECT_GCC_OPTIONS='-pipe' '-Zomf' '-v' '-o' 'cmTC_ff277.exe' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'cmTC_ff277-']
   ignore line: [COMPILER_PATH=U:/usr/local1220/bin/../libexec/gcc/i686-pc-os2-emx/12.2.0/]
   ignore line: [U:/usr/local1220/bin/../libexec/gcc/]
   ignore line: [LIBRARY_PATH=U:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/]
@@ -256,9 +256,9 @@ Parsed Fortran implicit link information from above output:
   ignore line: [U:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/../../../]
   ignore line: [/lib/]
   ignore line: [/usr/lib/]
-  ignore line: [COLLECT_GCC_OPTIONS='-pipe' '-Zomf' '-v' '-o' 'cmTC_849b1.exe' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'cmTC_849b1.']
-  ignore line: [ emxomfld.exe -o cmTC_849b1.exe U:/usr/lib/crt0.obj -LU:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0 -LU:/usr/local1220/bin/../lib/gcc -Lu:/usr/local1220/lib -LU:/usr/lib -Lu:/extras/lib -Lu:/openldap/lib -Lc:/os2/dll -Lc:/mptn/dll -LU:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/../../.. -O DISABLE -O 1121 -lcx CMakeFiles/cmTC_849b1.dir/CMakeFortranCompilerABI.F.obj -lgfortran -lm -lgcc_so_d -lquadmath -lm -lgcc_so_d -lc_alias -lc_dll -los2 -lend]
-  ignore line: [COLLECT_GCC_OPTIONS='-pipe' '-Zomf' '-v' '-o' 'cmTC_849b1.exe' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'cmTC_849b1.']
+  ignore line: [COLLECT_GCC_OPTIONS='-pipe' '-Zomf' '-v' '-o' 'cmTC_ff277.exe' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'cmTC_ff277.']
+  ignore line: [ emxomfld.exe -o cmTC_ff277.exe U:/usr/lib/crt0.obj -LU:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0 -LU:/usr/local1220/bin/../lib/gcc -Lu:/usr/local1220/lib -LU:/usr/lib -Lu:/extras/lib -Lu:/openldap/lib -Lc:/os2/dll -Lc:/mptn/dll -LU:/usr/local1220/bin/../lib/gcc/i686-pc-os2-emx/12.2.0/../../.. -O DISABLE -O 1121 CMakeFiles/cmTC_ff277.dir/CMakeFortranCompilerABI.F.obj -lgfortran -lm -lgcc_so_d -lquadmath -lm -lgcc_so_d -lc_alias -lc_dll -los2 -lend]
+  ignore line: [COLLECT_GCC_OPTIONS='-pipe' '-Zomf' '-v' '-o' 'cmTC_ff277.exe' '-mtune=generic' '-march=pentiumpro' '-dumpdir' 'cmTC_ff277.']
   ignore line: [make[1]: Leaving directory `U:/dev/cmake-os2/Tests/CMakeFiles/CheckFortran/CMakeFiles/CMakeTmp']
   ignore line: []
   ignore line: []
@@ -270,12 +270,12 @@ Parsed Fortran implicit link information from above output:
 Determining if the Fortran compiler supports Fortran 90 passed with the following output:
 Change Dir: U:/dev/cmake-os2/Tests/CMakeFiles/CheckFortran/CMakeFiles/CMakeTmp
 
-Run Build Command(s):E:/USR/BIN/make.exe cmTC_849b0/fast && make  -f CMakeFiles/cmTC_849b0.dir/build.make CMakeFiles/cmTC_849b0.dir/build
+Run Build Command(s):E:/USR/BIN/make.exe cmTC_ff274/fast && make  -f CMakeFiles/cmTC_ff274.dir/build.make CMakeFiles/cmTC_ff274.dir/build
 make[1]: Entering directory `U:/dev/cmake-os2/Tests/CMakeFiles/CheckFortran/CMakeFiles/CMakeTmp'
-Building Fortran object CMakeFiles/cmTC_849b0.dir/testFortranCompilerF90.f90.obj
-U:/usr/local1220/bin/gfortran.exe    -c U:/dev/cmake-os2/Tests/CMakeFiles/CheckFortran/CMakeFiles/CMakeTmp/testFortranCompilerF90.f90 -o CMakeFiles/cmTC_849b0.dir/testFortranCompilerF90.f90.obj
-Linking Fortran executable cmTC_849b0.exe
-U:/usr/local1220/bin/gfortran.exe  -Zomf -Zlinker DISABLE -Zlinker 1121 -lcx    "CMakeFiles/cmTC_849b0.dir/testFortranCompilerF90.f90.obj"   -o cmTC_849b0.exe 
+Building Fortran object CMakeFiles/cmTC_ff274.dir/testFortranCompilerF90.f90.obj
+U:/usr/local1220/bin/gfortran.exe    -c U:/dev/cmake-os2/Tests/CMakeFiles/CheckFortran/CMakeFiles/CMakeTmp/testFortranCompilerF90.f90 -o CMakeFiles/cmTC_ff274.dir/testFortranCompilerF90.f90.obj
+Linking Fortran executable cmTC_ff274.exe
+U:/usr/local1220/bin/gfortran.exe  -Zomf -Zlinker DISABLE -Zlinker 1121    "CMakeFiles/cmTC_ff274.dir/testFortranCompilerF90.f90.obj"   -o cmTC_ff274.exe 
 make[1]: Leaving directory `U:/dev/cmake-os2/Tests/CMakeFiles/CheckFortran/CMakeFiles/CMakeTmp'
 
 

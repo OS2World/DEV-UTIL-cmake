@@ -164,16 +164,16 @@
 #define HAVE_FORK 1
 
 /* Define to 1 if you have the freeaddrinfo function. */
-#define HAVE_FREEADDRINFO 1
+/* #undef HAVE_FREEADDRINFO */
 
 /* Define to 1 if you have the freeifaddrs function. */
-#define HAVE_FREEIFADDRS 1
+/* #undef HAVE_FREEIFADDRS */
 
 /* Define to 1 if you have the ftruncate function. */
 #define HAVE_FTRUNCATE 1
 
 /* Define to 1 if you have a working getaddrinfo function. */
-#define HAVE_GETADDRINFO 1
+/* #undef HAVE_GETADDRINFO */
 
 /* Define to 1 if you have the `geteuid' function. */
 #define HAVE_GETEUID 1
@@ -477,7 +477,7 @@
 #define HAVE_PIPE 1
 
 /* Define to 1 if you have a working poll function. */
-#define HAVE_POLL 1
+/* #undef HAVE_POLL */
 
 /* If you have a fine poll */
 /* #undef HAVE_POLL_FINE */

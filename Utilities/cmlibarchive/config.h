@@ -880,7 +880,7 @@ typedef uint64_t uintmax_t;
 /* #undef HAVE_PKCS5_PBKDF2_HMAC_SHA1 */
 
 /* Define to 1 if you have the `poll' function. */
-#define HAVE_POLL 1
+/* #undef HAVE_POLL */
 
 /* Define to 1 if you have the <poll.h> header file. */
 #define HAVE_POLL_H 1
