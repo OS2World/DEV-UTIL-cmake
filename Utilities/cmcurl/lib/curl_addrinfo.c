@@ -45,6 +45,11 @@
 #  include <inet.h>
 #endif
 
+#ifdef __OS2__
+#define HAVE_GETADDRINFO
+#define USE_RESOLVE_ON_IPS
+#endif
+
 #if defined(NETWARE) && defined(__NOVELL_LIBC__)
 #  undef  in_addr_t
 #  define in_addr_t unsigned long
