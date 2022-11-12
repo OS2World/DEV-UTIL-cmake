@@ -1554,7 +1554,7 @@ cmake_cxx_flags="${cmake_cxx_flags} \
   -I`cmake_escape \"${cmake_source_dir}/Utilities/std\"` \
   -I`cmake_escape \"${cmake_source_dir}/Utilities\"`"
 echo "cmake: ${objs}" > "${cmake_bootstrap_dir}/Makefile"
-echo "	${cmake_cxx_compiler} ${cmake_ld_flags} ${cmake_cxx_flags} ${objs} ${libs} -o cmake" >> "${cmake_bootstrap_dir}/Makefile"
+echo "	${cmake_cxx_compiler} ${cmake_ld_flags} ${cmake_cxx_flags} ${objs} ${libs} -o cmake -lcx" >> "${cmake_bootstrap_dir}/Makefile"
 for a in ${CMAKE_CXX_SOURCES}; do
   src=`cmake_escape "${cmake_source_dir}/Source/${a}.cxx"`
   src_flags=`eval echo \\${cmake_cxx_flags_\${a}}`
