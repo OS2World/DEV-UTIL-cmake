@@ -512,16 +512,6 @@ stdarg.h
 stdio.h
 -
 
-U:/DEV/cmake-os2/Tests/CMakeLib/CMakeLibTests.cxx
-ctype.h
--
-stdio.h
--
-stdlib.h
--
-string.h
--
-
 U:/DEV/cmake-os2/Tests/CMakeLib/testArgumentParser.cxx
 initializer_list
 -

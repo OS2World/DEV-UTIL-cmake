@@ -389,7 +389,11 @@ int uv__udp_check_before_send(uv_udp_t* handle, const struct sockaddr* addr) {
     if (addr->sa_family == AF_INET)
       addrlen = sizeof(struct sockaddr_in);
     else if (addr->sa_family == AF_INET6)
+#ifndef __OS2__
       addrlen = sizeof(struct sockaddr_in6);
+#else
+      addrlen = sizeof(struct sockaddr_in);
+#endif
 #if defined(AF_UNIX) && !defined(_WIN32)
     else if (addr->sa_family == AF_UNIX)
       addrlen = sizeof(struct sockaddr_un);

@@ -794,9 +794,9 @@ cmake_try_run ()
     exit 4
   fi
 
-  # on OS/2 we need to add -Zexe to build an exe
+  # on OS/2 -Zomf will build an executable or using the .exe suffix will also work
   if ${cmake_system_os2}; then
-    FLAGS="${FLAGS} -Zexe -lcx "
+    FLAGS="${FLAGS} -Zomf -lcx "
   fi
 
   TMPFILE=`cmake_tmp_file`
@@ -983,7 +983,7 @@ fi
 
 # Add OS/2 flags
 if ${cmake_system_os2}; then
-  cmake_ld_flags="${LDFLAGS} -Zexe -lcx"
+  cmake_ld_flags="${LDFLAGS} -Zomf -lcx"
 fi
 
 # Add CoreFoundation framework on Darwin
