@@ -6,13 +6,14 @@
 #include <cstdlib>
 #include <sstream>
 
-#include "cm_static_string_view.hxx"
+#include <cmext/string_view>
 
 #include "cmCTest.h"
 #include "cmCTestGenericHandler.h"
 #include "cmCTestTestHandler.h"
 #include "cmDuration.h"
 #include "cmMakefile.h"
+#include "cmProperty.h"
 #include "cmStringAlgorithms.h"
 
 void cmCTestTestCommand::BindArguments()
@@ -29,20 +30,21 @@ void cmCTestTestCommand::BindArguments()
   this->Bind("EXCLUDE_FIXTURE_SETUP"_s, this->ExcludeFixtureSetup);
   this->Bind("EXCLUDE_FIXTURE_CLEANUP"_s, this->ExcludeFixtureCleanup);
   this->Bind("PARALLEL_LEVEL"_s, this->ParallelLevel);
+  this->Bind("REPEAT"_s, this->Repeat);
   this->Bind("SCHEDULE_RANDOM"_s, this->ScheduleRandom);
   this->Bind("STOP_TIME"_s, this->StopTime);
   this->Bind("TEST_LOAD"_s, this->TestLoad);
   this->Bind("RESOURCE_SPEC_FILE"_s, this->ResourceSpecFile);
+  this->Bind("STOP_ON_FAILURE"_s, this->StopOnFailure);
 }
 
 cmCTestGenericHandler* cmCTestTestCommand::InitializeHandler()
 {
-  const char* ctestTimeout =
-    this->Makefile->GetDefinition("CTEST_TEST_TIMEOUT");
+  cmProp ctestTimeout = this->Makefile->GetDefinition("CTEST_TEST_TIMEOUT");
 
   cmDuration timeout;
   if (ctestTimeout) {
-    timeout = cmDuration(atof(ctestTimeout));
+    timeout = cmDuration(atof(ctestTimeout->c_str()));
   } else {
     timeout = this->CTest->GetTimeOut();
     if (timeout <= cmDuration::zero()) {
@@ -51,6 +53,13 @@ cmCTestGenericHandler* cmCTestTestCommand::InitializeHandler()
     }
   }
   this->CTest->SetTimeOut(timeout);
+
+  cmProp resourceSpecFile =
+    this->Makefile->GetDefinition("CTEST_RESOURCE_SPEC_FILE");
+  if (this->ResourceSpecFile.empty() && resourceSpecFile) {
+    this->ResourceSpecFile = *resourceSpecFile;
+  }
+
   cmCTestGenericHandler* handler = this->InitializeActualHandler();
   if (!this->Start.empty() || !this->End.empty() || !this->Stride.empty()) {
     handler->SetOption(
@@ -82,8 +91,14 @@ cmCTestGenericHandler* cmCTestTestCommand::InitializeHandler()
     handler->SetOption("ExcludeFixtureCleanupRegularExpression",
                        this->ExcludeFixtureCleanup.c_str());
   }
+  if (this->StopOnFailure) {
+    handler->SetOption("StopOnFailure", "ON");
+  }
   if (!this->ParallelLevel.empty()) {
     handler->SetOption("ParallelLevel", this->ParallelLevel.c_str());
+  }
+  if (!this->Repeat.empty()) {
+    handler->SetOption("Repeat", this->Repeat.c_str());
   }
   if (!this->ScheduleRandom.empty()) {
     handler->SetOption("ScheduleRandom", this->ScheduleRandom.c_str());
@@ -99,19 +114,19 @@ cmCTestGenericHandler* cmCTestTestCommand::InitializeHandler()
   // or CTEST_TEST_LOAD script variable, or ctest --test-load
   // command line argument... in that order.
   unsigned long testLoad;
-  const char* ctestTestLoad = this->Makefile->GetDefinition("CTEST_TEST_LOAD");
+  cmProp ctestTestLoad = this->Makefile->GetDefinition("CTEST_TEST_LOAD");
   if (!this->TestLoad.empty()) {
-    if (!cmStrToULong(this->TestLoad.c_str(), &testLoad)) {
+    if (!cmStrToULong(this->TestLoad, &testLoad)) {
       testLoad = 0;
       cmCTestLog(this->CTest, WARNING,
                  "Invalid value for 'TEST_LOAD' : " << this->TestLoad
                                                     << std::endl);
     }
-  } else if (ctestTestLoad && *ctestTestLoad) {
-    if (!cmStrToULong(ctestTestLoad, &testLoad)) {
+  } else if (cmNonempty(ctestTestLoad)) {
+    if (!cmStrToULong(*ctestTestLoad, &testLoad)) {
       testLoad = 0;
       cmCTestLog(this->CTest, WARNING,
-                 "Invalid value for 'CTEST_TEST_LOAD' : " << ctestTestLoad
+                 "Invalid value for 'CTEST_TEST_LOAD' : " << *ctestTestLoad
                                                           << std::endl);
     }
   } else {
@@ -119,10 +134,10 @@ cmCTestGenericHandler* cmCTestTestCommand::InitializeHandler()
   }
   handler->SetTestLoad(testLoad);
 
-  if (const char* labelsForSubprojects =
+  if (cmProp labelsForSubprojects =
         this->Makefile->GetDefinition("CTEST_LABELS_FOR_SUBPROJECTS")) {
     this->CTest->SetCTestConfiguration("LabelsForSubprojects",
-                                       labelsForSubprojects, this->Quiet);
+                                       *labelsForSubprojects, this->Quiet);
   }
 
   handler->SetQuiet(this->Quiet);

@@ -1,11 +1,11 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmComputeLinkInformation_h
-#define cmComputeLinkInformation_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
 #include <iosfwd>
+#include <memory>
 #include <set>
 #include <string>
 #include <utility>
@@ -29,6 +29,9 @@ class cmComputeLinkInformation
 public:
   cmComputeLinkInformation(cmGeneratorTarget const* target,
                            const std::string& config);
+  cmComputeLinkInformation(const cmComputeLinkInformation&) = delete;
+  cmComputeLinkInformation& operator=(const cmComputeLinkInformation&) =
+    delete;
   ~cmComputeLinkInformation();
   bool Compute();
 
@@ -52,6 +55,7 @@ public:
   std::vector<BT<std::string>> GetDirectoriesWithBacktraces();
   std::vector<std::string> const& GetDepends() const;
   std::vector<std::string> const& GetFrameworkPaths() const;
+  std::set<std::string> const& GetFrameworkPathsEmitted() const;
   std::string GetLinkLanguage() const { return this->LinkLanguage; }
   std::vector<std::string> const& GetRuntimeSearchPath() const;
   std::string const& GetRuntimeFlag() const { return this->RuntimeFlag; }
@@ -140,11 +144,11 @@ private:
   cmsys::RegularExpression ExtractSharedLibraryName;
   cmsys::RegularExpression ExtractAnyLibraryName;
   std::string SharedRegexString;
-  void AddLinkPrefix(const char* p);
-  void AddLinkExtension(const char* e, LinkType type);
+  void AddLinkPrefix(std::string const& p);
+  void AddLinkExtension(std::string const& e, LinkType type);
   std::string CreateExtensionRegex(std::vector<std::string> const& exts,
                                    LinkType type);
-  std::string NoCaseExpression(const char* str);
+  std::string NoCaseExpression(std::string const& str);
 
   // Handling of link items.
   void AddTargetItem(BT<std::string> const& item,
@@ -152,7 +156,6 @@ private:
   void AddFullItem(BT<std::string> const& item);
   bool CheckImplicitDirItem(std::string const& item);
   void AddUserItem(BT<std::string> const& item, bool pathNotKnown);
-  void AddDirectoryItem(std::string const& item);
   void AddFrameworkItem(std::string const& item);
   void DropDirectoryItem(std::string const& item);
   bool CheckSharedLibNoSOName(std::string const& item);
@@ -162,11 +165,11 @@ private:
   // Framework info.
   void ComputeFrameworkInfo();
   void AddFrameworkPath(std::string const& p);
-  std::set<std::string> FrameworkPathsEmmitted;
+  std::set<std::string> FrameworkPathsEmitted;
   cmsys::RegularExpression SplitFramework;
 
   // Linker search path computation.
-  cmOrderDirectories* OrderLinkerSearchPath;
+  std::unique_ptr<cmOrderDirectories> OrderLinkerSearchPath;
   bool FinishLinkerSearchDirectories();
   void PrintLinkPolicyDiagnosis(std::ostream&);
 
@@ -174,6 +177,7 @@ private:
   void LoadImplicitLinkInfo();
   void AddImplicitLinkInfo();
   void AddImplicitLinkInfo(std::string const& lang);
+  void AddRuntimeLinkLibrary(std::string const& lang);
   std::set<std::string> ImplicitLinkDirs;
   std::set<std::string> ImplicitLinkLibs;
 
@@ -186,9 +190,9 @@ private:
   std::vector<std::string> OldUserFlagItems;
   std::set<std::string> CMP0060WarnItems;
   // Dependent library path computation.
-  cmOrderDirectories* OrderDependentRPath;
+  std::unique_ptr<cmOrderDirectories> OrderDependentRPath;
   // Runtime path computation.
-  cmOrderDirectories* OrderRuntimeSearchPath;
+  std::unique_ptr<cmOrderDirectories> OrderRuntimeSearchPath;
 
   bool OldLinkDirMode;
   bool OpenBSD;
@@ -204,5 +208,3 @@ private:
                              const cmGeneratorTarget* target);
   void AddLibraryRuntimeInfo(std::string const& fullPath);
 };
-
-#endif

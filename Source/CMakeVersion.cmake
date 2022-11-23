@@ -1,7 +1,7 @@
 # CMake version number components.
 set(CMake_VERSION_MAJOR 3)
-set(CMake_VERSION_MINOR 16)
-set(CMake_VERSION_PATCH 9)
+set(CMake_VERSION_MINOR 19)
+set(CMake_VERSION_PATCH 8)
 #set(CMake_VERSION_RC 0)
 set(CMake_VERSION_IS_DIRTY 0)
 
@@ -21,7 +21,7 @@ endif()
 
 if(NOT CMake_VERSION_NO_GIT)
   # If this source was exported by 'git archive', use its commit info.
-  set(git_info [==[43ddc64032 CMake 3.16.9]==])
+  set(git_info [==[c9b27dace7 CMake 3.19.8]==])
 
   # Otherwise, try to identify the current development source version.
   if(NOT git_info MATCHES "^([0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]?[0-9a-f]?)[0-9a-f]* "

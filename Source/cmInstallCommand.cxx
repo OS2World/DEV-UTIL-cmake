@@ -8,10 +8,9 @@
 #include <utility>
 
 #include <cm/memory>
+#include <cmext/string_view>
 
 #include "cmsys/Glob.hxx"
-
-#include "cm_static_string_view.hxx"
 
 #include "cmArgumentParser.h"
 #include "cmExecutionStatus.h"
@@ -29,6 +28,7 @@
 #include "cmMakefile.h"
 #include "cmMessageType.h"
 #include "cmPolicies.h"
+#include "cmProperty.h"
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSubcommandTable.h"
@@ -85,7 +85,7 @@ public:
   std::string DefaultComponentName;
 };
 
-cmInstallTargetGenerator* CreateInstallTargetGenerator(
+std::unique_ptr<cmInstallTargetGenerator> CreateInstallTargetGenerator(
   cmTarget& target, const cmInstallCommandArguments& args, bool impLib,
   cmListFileBacktrace const& backtrace, const std::string& destination,
   bool forceOpt = false, bool namelink = false)
@@ -93,18 +93,17 @@ cmInstallTargetGenerator* CreateInstallTargetGenerator(
   cmInstallGenerator::MessageLevel message =
     cmInstallGenerator::SelectMessageLevel(target.GetMakefile());
   target.SetHaveInstallRule(true);
-  const char* component = namelink ? args.GetNamelinkComponent().c_str()
-                                   : args.GetComponent().c_str();
-  auto g = new cmInstallTargetGenerator(
-    target.GetName(), destination.c_str(), impLib,
-    args.GetPermissions().c_str(), args.GetConfigurations(), component,
-    message, args.GetExcludeFromAll(), args.GetOptional() || forceOpt,
-    backtrace);
-  target.AddInstallGenerator(g);
+  const std::string& component =
+    namelink ? args.GetNamelinkComponent() : args.GetComponent();
+  auto g = cm::make_unique<cmInstallTargetGenerator>(
+    target.GetName(), destination, impLib, args.GetPermissions(),
+    args.GetConfigurations(), component, message, args.GetExcludeFromAll(),
+    args.GetOptional() || forceOpt, backtrace);
+  target.AddInstallGenerator(g.get());
   return g;
 }
 
-cmInstallTargetGenerator* CreateInstallTargetGenerator(
+std::unique_ptr<cmInstallTargetGenerator> CreateInstallTargetGenerator(
   cmTarget& target, const cmInstallCommandArguments& args, bool impLib,
   cmListFileBacktrace const& backtrace, bool forceOpt = false,
   bool namelink = false)
@@ -114,20 +113,20 @@ cmInstallTargetGenerator* CreateInstallTargetGenerator(
                                       namelink);
 }
 
-cmInstallFilesGenerator* CreateInstallFilesGenerator(
+std::unique_ptr<cmInstallFilesGenerator> CreateInstallFilesGenerator(
   cmMakefile* mf, const std::vector<std::string>& absFiles,
   const cmInstallCommandArguments& args, bool programs,
   const std::string& destination)
 {
   cmInstallGenerator::MessageLevel message =
     cmInstallGenerator::SelectMessageLevel(mf);
-  return new cmInstallFilesGenerator(
-    absFiles, destination.c_str(), programs, args.GetPermissions().c_str(),
-    args.GetConfigurations(), args.GetComponent().c_str(), message,
-    args.GetExcludeFromAll(), args.GetRename().c_str(), args.GetOptional());
+  return cm::make_unique<cmInstallFilesGenerator>(
+    absFiles, destination, programs, args.GetPermissions(),
+    args.GetConfigurations(), args.GetComponent(), message,
+    args.GetExcludeFromAll(), args.GetRename(), args.GetOptional());
 }
 
-cmInstallFilesGenerator* CreateInstallFilesGenerator(
+std::unique_ptr<cmInstallFilesGenerator> CreateInstallFilesGenerator(
   cmMakefile* mf, const std::vector<std::string>& absFiles,
   const cmInstallCommandArguments& args, bool programs)
 {
@@ -196,13 +195,15 @@ bool HandleScriptMode(std::vector<std::string> const& args,
         status.SetError("given a directory as value of SCRIPT argument.");
         return false;
       }
-      helper.Makefile->AddInstallGenerator(new cmInstallScriptGenerator(
-        script.c_str(), false, component.c_str(), exclude_from_all));
+      helper.Makefile->AddInstallGenerator(
+        cm::make_unique<cmInstallScriptGenerator>(script, false, component,
+                                                  exclude_from_all));
     } else if (doing_code) {
       doing_code = false;
       std::string const& code = arg;
-      helper.Makefile->AddInstallGenerator(new cmInstallScriptGenerator(
-        code.c_str(), true, component.c_str(), exclude_from_all));
+      helper.Makefile->AddInstallGenerator(
+        cm::make_unique<cmInstallScriptGenerator>(code, true, component,
+                                                  exclude_from_all));
     }
   }
 
@@ -449,16 +450,16 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
   for (cmTarget* ti : targets) {
     // Handle each target type.
     cmTarget& target = *ti;
-    cmInstallTargetGenerator* archiveGenerator = nullptr;
-    cmInstallTargetGenerator* libraryGenerator = nullptr;
-    cmInstallTargetGenerator* namelinkGenerator = nullptr;
-    cmInstallTargetGenerator* runtimeGenerator = nullptr;
-    cmInstallTargetGenerator* objectGenerator = nullptr;
-    cmInstallTargetGenerator* frameworkGenerator = nullptr;
-    cmInstallTargetGenerator* bundleGenerator = nullptr;
-    cmInstallFilesGenerator* privateHeaderGenerator = nullptr;
-    cmInstallFilesGenerator* publicHeaderGenerator = nullptr;
-    cmInstallFilesGenerator* resourceGenerator = nullptr;
+    std::unique_ptr<cmInstallTargetGenerator> archiveGenerator;
+    std::unique_ptr<cmInstallTargetGenerator> libraryGenerator;
+    std::unique_ptr<cmInstallTargetGenerator> namelinkGenerator;
+    std::unique_ptr<cmInstallTargetGenerator> runtimeGenerator;
+    std::unique_ptr<cmInstallTargetGenerator> objectGenerator;
+    std::unique_ptr<cmInstallTargetGenerator> frameworkGenerator;
+    std::unique_ptr<cmInstallTargetGenerator> bundleGenerator;
+    std::unique_ptr<cmInstallFilesGenerator> privateHeaderGenerator;
+    std::unique_ptr<cmInstallFilesGenerator> publicHeaderGenerator;
+    std::unique_ptr<cmInstallFilesGenerator> resourceGenerator;
 
     // Avoid selecting default destinations for PUBLIC_HEADER and
     // PRIVATE_HEADER if any artifacts are specified.
@@ -466,6 +467,27 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
 
     // Track whether this is a namelink-only rule.
     bool namelinkOnly = false;
+
+    auto addTargetExport = [&]() {
+      // Add this install rule to an export if one was specified.
+      if (!exports.empty()) {
+        auto te = cm::make_unique<cmTargetExport>();
+        te->TargetName = target.GetName();
+        te->ArchiveGenerator = archiveGenerator.get();
+        te->BundleGenerator = bundleGenerator.get();
+        te->FrameworkGenerator = frameworkGenerator.get();
+        te->HeaderGenerator = publicHeaderGenerator.get();
+        te->LibraryGenerator = libraryGenerator.get();
+        te->RuntimeGenerator = runtimeGenerator.get();
+        te->ObjectsGenerator = objectGenerator.get();
+        te->InterfaceIncludeDirectories =
+          cmJoin(includesArgs.GetIncludeDirs(), ";");
+        te->NamelinkOnly = namelinkOnly;
+        helper.Makefile->GetGlobalGenerator()
+          ->GetExportSets()[exports]
+          .AddTargetExport(std::move(te));
+      }
+    };
 
     switch (target.GetType()) {
       case cmStateEnums::SHARED_LIBRARY: {
@@ -475,6 +497,8 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
         if (target.IsDLLPlatform()) {
           // When in namelink only mode skip all libraries on Windows.
           if (namelinkMode == cmInstallTargetGenerator::NamelinkModeOnly) {
+            namelinkOnly = true;
+            addTargetExport();
             continue;
           }
 
@@ -499,11 +523,7 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
             artifactsSpecified = true;
           }
 #endif
-#ifdef __OS2__
-          if ((archiveGenerator == nullptr) && (runtimeGenerator == nullptr)) {
-#else
-          if ((archiveGenerator == nullptr) && (runtimeGenerator == nullptr)) {
-#endif
+          if (!archiveGenerator && !runtimeGenerator) {
             archiveGenerator = CreateInstallTargetGenerator(
               target, archiveArgs, true, helper.Makefile->GetBacktrace(),
               helper.GetArchiveDestination(nullptr));
@@ -524,6 +544,8 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
           if (target.IsFrameworkOnApple()) {
             // When in namelink only mode skip frameworks.
             if (namelinkMode == cmInstallTargetGenerator::NamelinkModeOnly) {
+              namelinkOnly = true;
+              addTargetExport();
               continue;
             }
 
@@ -568,6 +590,8 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
         if (target.IsFrameworkOnApple()) {
           // When in namelink only mode skip frameworks.
           if (namelinkMode == cmInstallTargetGenerator::NamelinkModeOnly) {
+            namelinkOnly = true;
+            addTargetExport();
             continue;
           }
 
@@ -678,7 +702,6 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
         // Nothing to do. An INTERFACE_LIBRARY can be installed, but the
         // only effect of that is to make it exportable. It installs no
         // other files itself.
-        break;
       default:
         // This should never happen due to the above type check.
         // Ignore the case.
@@ -697,9 +720,9 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
     }
 
     if (createInstallGeneratorsForTargetFileSets && !namelinkOnly) {
-      const char* files = target.GetProperty("PRIVATE_HEADER");
-      if ((files) && (*files)) {
-        std::vector<std::string> relFiles = cmExpandedList(files);
+      cmProp files = target.GetProperty("PRIVATE_HEADER");
+      if (cmNonempty(files)) {
+        std::vector<std::string> relFiles = cmExpandedList(*files);
         std::vector<std::string> absFiles;
         if (!helper.MakeFilesFullPath("PRIVATE_HEADER", relFiles, absFiles)) {
           return false;
@@ -720,8 +743,8 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
       }
 
       files = target.GetProperty("PUBLIC_HEADER");
-      if ((files) && (*files)) {
-        std::vector<std::string> relFiles = cmExpandedList(files);
+      if (cmNonempty(files)) {
+        std::vector<std::string> relFiles = cmExpandedList(*files);
         std::vector<std::string> absFiles;
         if (!helper.MakeFilesFullPath("PUBLIC_HEADER", relFiles, absFiles)) {
           return false;
@@ -742,8 +765,8 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
       }
 
       files = target.GetProperty("RESOURCE");
-      if ((files) && (*files)) {
-        std::vector<std::string> relFiles = cmExpandedList(files);
+      if (cmNonempty(files)) {
+        std::vector<std::string> relFiles = cmExpandedList(*files);
         std::vector<std::string> absFiles;
         if (!helper.MakeFilesFullPath("RESOURCE", relFiles, absFiles)) {
           return false;
@@ -762,50 +785,31 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
       }
     }
 
+    // Add this install rule to an export if one was specified.
+    addTargetExport();
+
     // Keep track of whether we're installing anything in each category
-    installsArchive = installsArchive || archiveGenerator != nullptr;
-    installsLibrary = installsLibrary || libraryGenerator != nullptr;
-    installsNamelink = installsNamelink || namelinkGenerator != nullptr;
-    installsRuntime = installsRuntime || runtimeGenerator != nullptr;
-    installsObject = installsObject || objectGenerator != nullptr;
-    installsFramework = installsFramework || frameworkGenerator != nullptr;
-    installsBundle = installsBundle || bundleGenerator != nullptr;
-    installsPrivateHeader =
-      installsPrivateHeader || privateHeaderGenerator != nullptr;
-    installsPublicHeader =
-      installsPublicHeader || publicHeaderGenerator != nullptr;
+    installsArchive = installsArchive || archiveGenerator;
+    installsLibrary = installsLibrary || libraryGenerator;
+    installsNamelink = installsNamelink || namelinkGenerator;
+    installsRuntime = installsRuntime || runtimeGenerator;
+    installsObject = installsObject || objectGenerator;
+    installsFramework = installsFramework || frameworkGenerator;
+    installsBundle = installsBundle || bundleGenerator;
+    installsPrivateHeader = installsPrivateHeader || privateHeaderGenerator;
+    installsPublicHeader = installsPublicHeader || publicHeaderGenerator;
     installsResource = installsResource || resourceGenerator;
 
-    helper.Makefile->AddInstallGenerator(archiveGenerator);
-    helper.Makefile->AddInstallGenerator(libraryGenerator);
-    helper.Makefile->AddInstallGenerator(namelinkGenerator);
-    helper.Makefile->AddInstallGenerator(runtimeGenerator);
-    helper.Makefile->AddInstallGenerator(objectGenerator);
-    helper.Makefile->AddInstallGenerator(frameworkGenerator);
-    helper.Makefile->AddInstallGenerator(bundleGenerator);
-    helper.Makefile->AddInstallGenerator(privateHeaderGenerator);
-    helper.Makefile->AddInstallGenerator(publicHeaderGenerator);
-    helper.Makefile->AddInstallGenerator(resourceGenerator);
-
-    // Add this install rule to an export if one was specified and
-    // this is not a namelink-only rule.
-    if (!exports.empty() && !namelinkOnly) {
-      auto te = cm::make_unique<cmTargetExport>();
-      te->TargetName = target.GetName();
-      te->ArchiveGenerator = archiveGenerator;
-      te->BundleGenerator = bundleGenerator;
-      te->FrameworkGenerator = frameworkGenerator;
-      te->HeaderGenerator = publicHeaderGenerator;
-      te->LibraryGenerator = libraryGenerator;
-      te->RuntimeGenerator = runtimeGenerator;
-      te->ObjectsGenerator = objectGenerator;
-      te->InterfaceIncludeDirectories =
-        cmJoin(includesArgs.GetIncludeDirs(), ";");
-
-      helper.Makefile->GetGlobalGenerator()
-        ->GetExportSets()[exports]
-        .AddTargetExport(std::move(te));
-    }
+    helper.Makefile->AddInstallGenerator(std::move(archiveGenerator));
+    helper.Makefile->AddInstallGenerator(std::move(libraryGenerator));
+    helper.Makefile->AddInstallGenerator(std::move(namelinkGenerator));
+    helper.Makefile->AddInstallGenerator(std::move(runtimeGenerator));
+    helper.Makefile->AddInstallGenerator(std::move(objectGenerator));
+    helper.Makefile->AddInstallGenerator(std::move(frameworkGenerator));
+    helper.Makefile->AddInstallGenerator(std::move(bundleGenerator));
+    helper.Makefile->AddInstallGenerator(std::move(privateHeaderGenerator));
+    helper.Makefile->AddInstallGenerator(std::move(publicHeaderGenerator));
+    helper.Makefile->AddInstallGenerator(std::move(resourceGenerator));
   }
 
   // Tell the global generator about any installation component names
@@ -993,7 +997,7 @@ bool HandleDirectoryMode(std::vector<std::string> const& args,
   bool exclude_from_all = false;
   bool message_never = false;
   std::vector<std::string> dirs;
-  const char* destination = nullptr;
+  const std::string* destination = nullptr;
   std::string permissions_file;
   std::string permissions_dir;
   std::vector<std::string> configurations;
@@ -1152,7 +1156,7 @@ bool HandleDirectoryMode(std::vector<std::string> const& args,
     } else if (doing == DoingConfigurations) {
       configurations.push_back(args[i]);
     } else if (doing == DoingDestination) {
-      destination = args[i].c_str();
+      destination = &args[i];
       doing = DoingNone;
     } else if (doing == DoingType) {
       if (allowedTypes.count(args[i]) == 0) {
@@ -1177,7 +1181,7 @@ bool HandleDirectoryMode(std::vector<std::string> const& args,
     } else if (doing == DoingRegex) {
       literal_args += " REGEX \"";
 // Match rules are case-insensitive on some platforms.
-#if defined(_WIN32) || defined(__APPLE__) || defined(__CYGWIN__) || defined(__OS2__)
+#if defined(_WIN32) || defined(__APPLE__) || defined(__OS2__)
       std::string regex = cmSystemTools::LowerCase(args[i]);
 #else
       std::string regex = args[i];
@@ -1238,7 +1242,7 @@ bool HandleDirectoryMode(std::vector<std::string> const& args,
       return false;
     }
     destinationStr = helper.GetDestinationForType(nullptr, type);
-    destination = destinationStr.c_str();
+    destination = &destinationStr;
   } else if (!type.empty()) {
     status.SetError(cmStrCat(args[0],
                              " given both TYPE and DESTINATION "
@@ -1250,10 +1254,10 @@ bool HandleDirectoryMode(std::vector<std::string> const& args,
     cmInstallGenerator::SelectMessageLevel(helper.Makefile, message_never);
 
   // Create the directory install generator.
-  helper.Makefile->AddInstallGenerator(new cmInstallDirectoryGenerator(
-    dirs, destination, permissions_file.c_str(), permissions_dir.c_str(),
-    configurations, component.c_str(), message, exclude_from_all,
-    literal_args.c_str(), optional));
+  helper.Makefile->AddInstallGenerator(
+    cm::make_unique<cmInstallDirectoryGenerator>(
+      dirs, *destination, permissions_file, permissions_dir, configurations,
+      component, message, exclude_from_all, literal_args, optional));
 
   // Tell the global generator about any installation component names
   // specified.
@@ -1341,12 +1345,11 @@ bool HandleExportAndroidMKMode(std::vector<std::string> const& args,
     cmInstallGenerator::SelectMessageLevel(helper.Makefile);
 
   // Create the export install generator.
-  cmInstallExportGenerator* exportGenerator = new cmInstallExportGenerator(
-    &exportSet, ica.GetDestination().c_str(), ica.GetPermissions().c_str(),
-    ica.GetConfigurations(), ica.GetComponent().c_str(), message,
-    ica.GetExcludeFromAll(), fname.c_str(), name_space.c_str(), exportOld,
-    true);
-  helper.Makefile->AddInstallGenerator(exportGenerator);
+  helper.Makefile->AddInstallGenerator(
+    cm::make_unique<cmInstallExportGenerator>(
+      &exportSet, ica.GetDestination(), ica.GetPermissions(),
+      ica.GetConfigurations(), ica.GetComponent(), message,
+      ica.GetExcludeFromAll(), fname, name_space, exportOld, true));
 
   return true;
 #else
@@ -1455,12 +1458,11 @@ bool HandleExportMode(std::vector<std::string> const& args,
     cmInstallGenerator::SelectMessageLevel(helper.Makefile);
 
   // Create the export install generator.
-  cmInstallExportGenerator* exportGenerator = new cmInstallExportGenerator(
-    &exportSet, ica.GetDestination().c_str(), ica.GetPermissions().c_str(),
-    ica.GetConfigurations(), ica.GetComponent().c_str(), message,
-    ica.GetExcludeFromAll(), fname.c_str(), name_space.c_str(), exportOld,
-    false);
-  helper.Makefile->AddInstallGenerator(exportGenerator);
+  helper.Makefile->AddInstallGenerator(
+    cm::make_unique<cmInstallExportGenerator>(
+      &exportSet, ica.GetDestination(), ica.GetPermissions(),
+      ica.GetConfigurations(), ica.GetComponent(), message,
+      ica.GetExcludeFromAll(), fname, name_space, exportOld, false));
 
   return true;
 }

@@ -59,6 +59,10 @@ add_executable(bar bar.cxx
   ${CMAKE_CURRENT_BINARY_DIR}/noregen.h
   )
 
+if(CMAKE_XCODE_BUILD_SYSTEM VERSION_GREATER_EQUAL 12)
+  target_compile_definitions(bar PRIVATE XCODE_NEW_BUILD_SYSTEM)
+endif()
+
 #-----------------------------------------------------------------------------
 if("${CMAKE_GENERATOR}" MATCHES "Make")
   # Test the IMPLICIT_DEPENDS feature.
@@ -118,6 +122,14 @@ if(TEST_LINK_DEPENDS)
   set_property(TARGET foo_interface PROPERTY INTERFACE_LINK_DEPENDS $<1:${TEST_LINK_DEPENDS}>)
   add_executable(linkdep2 linkdep.cxx)
   target_link_libraries(linkdep2 PRIVATE foo_interface)
+
+  add_executable(linkdep3 linkdep.cxx)
+  set_property(TARGET linkdep3 PROPERTY LINK_DEPENDS $<$<LINK_LANGUAGE:CXX>:${TEST_LINK_DEPENDS}>)
+
+  add_library(foo_interface2 INTERFACE)
+  set_property(TARGET foo_interface2 PROPERTY INTERFACE_LINK_DEPENDS $<$<LINK_LANGUAGE:CXX>:${TEST_LINK_DEPENDS}>)
+  add_executable(linkdep4 linkdep.cxx)
+  target_link_libraries(linkdep4 PRIVATE foo_interface2)
 endif()
 
 add_library(link_depends_no_shared_lib SHARED link_depends_no_shared_lib.c

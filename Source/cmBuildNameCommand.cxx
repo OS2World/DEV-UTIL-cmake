@@ -8,6 +8,7 @@
 
 #include "cmExecutionStatus.h"
 #include "cmMakefile.h"
+#include "cmProperty.h"
 #include "cmStateTypes.h"
 #include "cmSystemTools.h"
 
@@ -19,16 +20,16 @@ bool cmBuildNameCommand(std::vector<std::string> const& args,
     return false;
   }
   cmMakefile& mf = status.GetMakefile();
-  const char* cacheValue = mf.GetDefinition(args[0]);
+  cmProp cacheValue = mf.GetDefinition(args[0]);
   if (cacheValue) {
     // do we need to correct the value?
     cmsys::RegularExpression reg("[()/]");
-    if (reg.find(cacheValue)) {
-      std::string cv = cacheValue;
+    std::string cv = *cacheValue;
+    if (reg.find(cv)) {
       std::replace(cv.begin(), cv.end(), '/', '_');
       std::replace(cv.begin(), cv.end(), '(', '_');
       std::replace(cv.begin(), cv.end(), ')', '_');
-      mf.AddCacheDefinition(args[0], cv.c_str(), "Name of build.",
+      mf.AddCacheDefinition(args[0], cv, "Name of build.",
                             cmStateEnums::STRING);
     }
     return true;
@@ -54,7 +55,7 @@ bool cmBuildNameCommand(std::vector<std::string> const& args,
   std::replace(buildname.begin(), buildname.end(), '(', '_');
   std::replace(buildname.begin(), buildname.end(), ')', '_');
 
-  mf.AddCacheDefinition(args[0], buildname.c_str(), "Name of build.",
+  mf.AddCacheDefinition(args[0], buildname, "Name of build.",
                         cmStateEnums::STRING);
   return true;
 }

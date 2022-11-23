@@ -155,7 +155,7 @@ macro(cuda_execute_process status command)
     # copy and paste a runnable command line.
     set(cuda_execute_process_string)
     foreach(arg ${ARGN})
-      # If there are quotes, excape them, so they come through.
+      # If there are quotes, escape them, so they come through.
       string(REPLACE "\"" "\\\"" arg ${arg})
       # Args with spaces need quotes around them to get them to be parsed as a single argument.
       if(arg MATCHES " ")
@@ -174,7 +174,7 @@ endmacro()
 # Delete the target file
 cuda_execute_process(
   "Removing ${generated_file}"
-  COMMAND "${CMAKE_COMMAND}" -E remove "${generated_file}"
+  COMMAND "${CMAKE_COMMAND}" -E rm -f "${generated_file}"
   )
 
 # For CUDA 2.3 and below, -G -M doesn't work, so remove the -G flag
@@ -241,7 +241,7 @@ endif()
 # Delete the temporary file
 cuda_execute_process(
   "Removing ${cmake_dependency_file}.tmp and ${NVCC_generated_dependency_file}"
-  COMMAND "${CMAKE_COMMAND}" -E remove "${cmake_dependency_file}.tmp" "${NVCC_generated_dependency_file}"
+  COMMAND "${CMAKE_COMMAND}" -E rm -f "${cmake_dependency_file}.tmp" "${NVCC_generated_dependency_file}"
   )
 
 if(CUDA_result)
@@ -267,7 +267,7 @@ if(CUDA_result)
   # Since nvcc can sometimes leave half done files make sure that we delete the output file.
   cuda_execute_process(
     "Removing ${generated_file}"
-    COMMAND "${CMAKE_COMMAND}" -E remove "${generated_file}"
+    COMMAND "${CMAKE_COMMAND}" -E rm -f "${generated_file}"
     )
   message(FATAL_ERROR "Error generating file ${generated_file}")
 else()

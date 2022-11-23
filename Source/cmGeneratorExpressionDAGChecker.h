@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmGeneratorExpressionDAGChecker_h
-#define cmGeneratorExpressionDAGChecker_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -66,9 +65,13 @@ struct cmGeneratorExpressionDAGChecker
   void ReportError(cmGeneratorExpressionContext* context,
                    const std::string& expr);
 
-  bool EvaluatingGenexExpression();
-  bool EvaluatingPICExpression();
-  bool EvaluatingLinkLibraries(cmGeneratorTarget const* tgt = nullptr);
+  bool EvaluatingGenexExpression() const;
+  bool EvaluatingPICExpression() const;
+  bool EvaluatingCompileExpression() const;
+  bool EvaluatingLinkExpression() const;
+  bool EvaluatingLinkOptionsExpression() const;
+
+  bool EvaluatingLinkLibraries(cmGeneratorTarget const* tgt = nullptr) const;
 
 #define DECLARE_TRANSITIVE_PROPERTY_METHOD(METHOD) bool METHOD() const;
 
@@ -76,9 +79,10 @@ struct cmGeneratorExpressionDAGChecker
 
 #undef DECLARE_TRANSITIVE_PROPERTY_METHOD
 
-  bool GetTransitivePropertiesOnly();
+  bool GetTransitivePropertiesOnly() const;
   void SetTransitivePropertiesOnly() { this->TransitivePropertiesOnly = true; }
 
+  cmGeneratorExpressionDAGChecker const* Top() const;
   cmGeneratorTarget const* TopTarget() const;
 
 private:
@@ -95,5 +99,3 @@ private:
   Result CheckResult;
   bool TransitivePropertiesOnly;
 };
-
-#endif

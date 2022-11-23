@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmExportBuildFileGenerator_h
-#define cmExportBuildFileGenerator_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -10,7 +9,8 @@
 #include <utility>
 #include <vector>
 
-#include "cmAlgorithms.h"
+#include <cmext/algorithm>
+
 #include "cmExportFileGenerator.h"
 #include "cmStateTypes.h"
 
@@ -41,7 +41,7 @@ public:
   void GetTargets(std::vector<std::string>& targets) const;
   void AppendTargets(std::vector<std::string> const& targets)
   {
-    cmAppend(this->Targets, targets);
+    cm::append(this->Targets, targets);
   }
   void SetExportSet(cmExportSet*);
 
@@ -84,5 +84,3 @@ protected:
   std::vector<cmGeneratorTarget*> Exports;
   cmLocalGenerator* LG;
 };
-
-#endif

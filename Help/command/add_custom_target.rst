@@ -49,6 +49,9 @@ The options are:
   order-only dependencies to ensure the byproducts will be
   available before their dependents build.
 
+  The :ref:`Makefile Generators` will remove ``BYPRODUCTS`` and other
+  :prop_sf:`GENERATED` files during ``make clean``.
+
 ``COMMAND``
   Specify the command-line(s) to execute at build time.
   If more than one ``COMMAND`` is specified they will be executed in order,
@@ -78,10 +81,15 @@ The options are:
   a target later in the command line (i.e. as a command argument rather
   than as the command to execute).
 
-  Whenever a target is used as a command to execute or is mentioned in a
-  generator expression as a command argument, a target-level dependency
-  will be added automatically so that the mentioned target will be built
-  before this custom target.
+  Whenever one of the following target based generator expressions are used as
+  a command to execute or is mentioned in a command argument, a target-level
+  dependency will be added automatically so that the mentioned target will be
+  built before this custom target (see policy :policy:`CMP0112`).
+
+    * ``TARGET_FILE``
+    * ``TARGET_LINKER_FILE``
+    * ``TARGET_SONAME_FILE``
+    * ``TARGET_PDB_FILE``
 
   The command and arguments are optional and if not specified an empty
   target will be created.

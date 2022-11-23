@@ -15,6 +15,7 @@
 #include "cmMakefile.h"
 #include "cmMessageType.h"
 #include "cmPolicies.h"
+#include "cmProperty.h"
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
@@ -39,13 +40,18 @@ bool cmProjectCommand(std::vector<std::string> const& args,
 
   std::string const& projectName = args[0];
 
+  if (!IncludeByVariable(status,
+                         "CMAKE_PROJECT_" + projectName + "_INCLUDE_BEFORE")) {
+    return false;
+  }
+
   mf.SetProjectName(projectName);
 
   mf.AddCacheDefinition(projectName + "_BINARY_DIR",
-                        mf.GetCurrentBinaryDirectory().c_str(),
+                        mf.GetCurrentBinaryDirectory(),
                         "Value Computed by CMake", cmStateEnums::STATIC);
   mf.AddCacheDefinition(projectName + "_SOURCE_DIR",
-                        mf.GetCurrentSourceDirectory().c_str(),
+                        mf.GetCurrentSourceDirectory(),
                         "Value Computed by CMake", cmStateEnums::STATIC);
 
   mf.AddDefinition("PROJECT_BINARY_DIR", mf.GetCurrentBinaryDirectory());
@@ -61,7 +67,7 @@ bool cmProjectCommand(std::vector<std::string> const& args,
   // will work.
   if (!mf.GetDefinition("CMAKE_PROJECT_NAME") || mf.IsRootMakefile()) {
     mf.AddDefinition("CMAKE_PROJECT_NAME", projectName);
-    mf.AddCacheDefinition("CMAKE_PROJECT_NAME", projectName.c_str(),
+    mf.AddCacheDefinition("CMAKE_PROJECT_NAME", projectName,
                           "Value Computed by CMake", cmStateEnums::STATIC);
   }
 
@@ -297,8 +303,8 @@ bool cmProjectCommand(std::vector<std::string> const& args,
     }
     std::string vw;
     for (std::string const& i : vv) {
-      const char* const v = mf.GetDefinition(i);
-      if (v && *v) {
+      cmProp v = mf.GetDefinition(i);
+      if (cmNonempty(v)) {
         if (cmp0048 == cmPolicies::WARN) {
           if (!injectedProjectCommand) {
             vw += "\n  ";
@@ -347,12 +353,12 @@ static bool IncludeByVariable(cmExecutionStatus& status,
                               const std::string& variable)
 {
   cmMakefile& mf = status.GetMakefile();
-  const char* const include = mf.GetDefinition(variable);
+  cmProp include = mf.GetDefinition(variable);
   if (!include) {
     return true;
   }
 
-  const bool readit = mf.ReadDependentFile(include);
+  const bool readit = mf.ReadDependentFile(*include);
   if (readit) {
     return true;
   }
@@ -361,7 +367,7 @@ static bool IncludeByVariable(cmExecutionStatus& status,
     return true;
   }
 
-  status.SetError(cmStrCat("could not find file:\n  ", include));
+  status.SetError(cmStrCat("could not find file:\n  ", *include));
   return false;
 }
 
@@ -374,7 +380,7 @@ static void TopLevelCMakeVarCondSet(cmMakefile& mf, std::string const& name,
   // CMakeLists.txt file, then go with the last one.
   if (!mf.GetDefinition(name) || mf.IsRootMakefile()) {
     mf.AddDefinition(name, value);
-    mf.AddCacheDefinition(name, value.c_str(), "Value Computed by CMake",
+    mf.AddCacheDefinition(name, value, "Value Computed by CMake",
                           cmStateEnums::STATIC);
   }
 }

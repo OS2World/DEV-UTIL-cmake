@@ -12,12 +12,13 @@
 #include <sstream>
 #include <utility>
 
+#include <cmext/algorithm>
+
 #include "cmsys/FStream.hxx"
 #include "cmsys/Glob.hxx"
 #include "cmsys/Process.h"
 #include "cmsys/RegularExpression.hxx"
 
-#include "cmAlgorithms.h"
 #include "cmCTest.h"
 #include "cmDuration.h"
 #include "cmGeneratedFileStream.h"
@@ -468,8 +469,8 @@ int cmCTestCoverageHandler::ProcessHandler()
     }
 
     const std::string fileName = cmSystemTools::GetFilenameName(fullFileName);
-    std::string shortFileName =
-      this->CTest->GetShortPathToFile(fullFileName.c_str());
+    const std::string shortFileName =
+      this->CTest->GetShortPathToFile(fullFileName);
     const cmCTestCoverageHandlerContainer::SingleFileCoverageVector& fcov =
       file.second;
     covLogXML.StartElement("File");
@@ -537,7 +538,7 @@ int cmCTestCoverageHandler::ProcessHandler()
     covSumXML.StartElement("File");
     covSumXML.Attribute("Name", fileName);
     covSumXML.Attribute("FullPath",
-                        this->CTest->GetShortPathToFile(fullFileName.c_str()));
+                        this->CTest->GetShortPathToFile(fullFileName));
     covSumXML.Attribute("Covered", tested + untested > 0 ? "true" : "false");
     covSumXML.Element("LOCTested", tested);
     covSumXML.Element("LOCUnTested", untested);
@@ -679,8 +680,9 @@ void cmCTestCoverageHandler::PopulateCustomVectors(cmMakefile* mf)
 //
 #ifdef _WIN32
 #  define fnc(s) cmSystemTools::LowerCase(s)
+#  define fnc_prefix(s, t) fnc(s.substr(0, t.size())) == fnc(t)
 #else
-#  define fnc(s) s
+#  define fnc_prefix(s, t) cmHasPrefix(s, t)
 #endif
 
 bool IsFileInDir(const std::string& infile, const std::string& indir)
@@ -688,8 +690,8 @@ bool IsFileInDir(const std::string& infile, const std::string& indir)
   std::string file = cmSystemTools::CollapseFullPath(infile);
   std::string dir = cmSystemTools::CollapseFullPath(indir);
 
-  return file.size() > dir.size() &&
-    fnc(file.substr(0, dir.size())) == fnc(dir) && file[dir.size()] == '/';
+  return file.size() > dir.size() && fnc_prefix(file, dir) &&
+    file[dir.size()] == '/';
 }
 
 int cmCTestCoverageHandler::HandlePHPCoverage(
@@ -819,7 +821,7 @@ int cmCTestCoverageHandler::HandleJacocoCoverage(
   std::string binaryDir = this->CTest->GetCTestConfiguration("BuildDirectory");
   std::string binCoverageFile = binaryDir + "/*jacoco.xml";
   g2.FindFiles(binCoverageFile);
-  cmAppend(files, g2.GetFiles());
+  cm::append(files, g2.GetFiles());
 
   if (!files.empty()) {
     cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
@@ -1213,8 +1215,6 @@ int cmCTestCoverageHandler::HandleGCovCoverage(
           while (cmSystemTools::GetLineFromStream(ifile, nl)) {
             cnt++;
 
-            // TODO: Handle gcov 3.0 non-coverage lines
-
             // Skip empty lines
             if (nl.empty()) {
               continue;
@@ -1222,6 +1222,14 @@ int cmCTestCoverageHandler::HandleGCovCoverage(
 
             // Skip unused lines
             if (nl.size() < 12) {
+              continue;
+            }
+
+            // Handle gcov 3.0 non-coverage lines
+            // non-coverage lines seem to always start with something not
+            // a space and don't have a ':' in the 9th position
+            // TODO: Verify that this is actually a robust metric
+            if (nl[0] != ' ' && nl[9] != ':') {
               continue;
             }
 
@@ -1462,7 +1470,7 @@ int cmCTestCoverageHandler::HandleLCovCoverage(
         "   looking for LCOV files in: " << daGlob << std::endl, this->Quiet);
       gl.FindFiles(daGlob);
       // Keep a list of all LCOV files
-      cmAppend(lcovFiles, gl.GetFiles());
+      cm::append(lcovFiles, gl.GetFiles());
 
       for (std::string const& file : lcovFiles) {
         lcovFile = file;
@@ -1599,10 +1607,10 @@ void cmCTestCoverageHandler::FindGCovFiles(std::vector<std::string>& files)
       "   globbing for coverage in: " << lm.first << std::endl, this->Quiet);
     std::string daGlob = cmStrCat(lm.first, "/*.da");
     gl.FindFiles(daGlob);
-    cmAppend(files, gl.GetFiles());
+    cm::append(files, gl.GetFiles());
     daGlob = cmStrCat(lm.first, "/*.gcda");
     gl.FindFiles(daGlob);
-    cmAppend(files, gl.GetFiles());
+    cm::append(files, gl.GetFiles());
   }
 }
 
@@ -1638,7 +1646,7 @@ bool cmCTestCoverageHandler::FindLCovFiles(std::vector<std::string>& files)
                "Error while finding files matching " << daGlob << std::endl);
     return false;
   }
-  cmAppend(files, gl.GetFiles());
+  cm::append(files, gl.GetFiles());
   cmCTestOptionalLog(this->CTest, HANDLER_VERBOSE_OUTPUT,
                      "Now searching in: " << daGlob << std::endl, this->Quiet);
   return true;
@@ -1708,29 +1716,26 @@ int cmCTestCoverageHandler::HandleTracePyCoverage(
 
         // Read the coverage count from the beginning of the Trace.py output
         // line
-        std::string prefix = nl.substr(0, 6);
-        if (prefix[5] != ' ' && prefix[5] != ':') {
-          // This is a hack. We should really do something more elaborate
-          prefix = nl.substr(0, 7);
-          if (prefix[6] != ' ' && prefix[6] != ':') {
-            prefix = nl.substr(0, 8);
-            if (prefix[7] != ' ' && prefix[7] != ':') {
-              cmCTestLog(this->CTest, ERROR_MESSAGE,
-                         "Currently the limit is maximum coverage of 999999"
-                           << std::endl);
-            }
+        std::string::size_type pos;
+        int cov = 0;
+        // This is a hack. We should really do something more elaborate
+        for (pos = 5; pos < 8; pos++) {
+          if (nl[pos] == ' ') {
+            // This line does not have ':' so no coverage here. That said,
+            // Trace.py does not handle not covered lines versus comments etc.
+            // So, this will be set to 0.
+            break;
+          }
+          if (nl[pos] == ':') {
+            cov = atoi(nl.substr(0, pos - 1).c_str());
+            break;
           }
         }
-        int cov = atoi(prefix.c_str());
-        if (prefix[prefix.size() - 1] != ':') {
-          // This line does not have ':' so no coverage here. That said,
-          // Trace.py does not handle not covered lines versus comments etc.
-          // So, this will be set to 0.
-          cov = 0;
+        if (pos == 8) {
+          cmCTestLog(this->CTest, ERROR_MESSAGE,
+                     "Currently the limit is maximum coverage of 999999"
+                       << std::endl);
         }
-        cmCTestOptionalLog(
-          this->CTest, DEBUG,
-          "Prefix: " << prefix << " cov: " << cov << std::endl, this->Quiet);
         // Read the line number starting at the 10th character of the gcov
         // output line
         long lineIdx = cnt;
@@ -1882,8 +1887,8 @@ int cmCTestCoverageHandler::RunBullseyeCoverageBranch(
         // start the file output
         covLogXML.StartElement("File");
         covLogXML.Attribute("Name", i->first);
-        covLogXML.Attribute(
-          "FullPath", this->CTest->GetShortPathToFile(i->second.c_str()));
+        covLogXML.Attribute("FullPath",
+                            this->CTest->GetShortPathToFile(i->second));
         covLogXML.StartElement("Report");
         // write the bullseye header
         line = 0;
@@ -2059,8 +2064,7 @@ int cmCTestCoverageHandler::RunBullseyeSourceSummary(
       total_untested += (totalFunctions - functionsCalled);
 
       std::string fileName = cmSystemTools::GetFilenameName(file);
-      std::string shortFileName =
-        this->CTest->GetShortPathToFile(file.c_str());
+      std::string shortFileName = this->CTest->GetShortPathToFile(file);
 
       float cper = static_cast<float>(percentBranch + percentFunction);
       if (totalBranches > 0) {
@@ -2261,7 +2265,7 @@ void cmCTestCoverageHandler::LoadLabels(const char* dir)
       // is the end of the target-wide labels.
       inTarget = false;
 
-      source = this->CTest->GetShortPathToFile(line.c_str());
+      source = this->CTest->GetShortPathToFile(line);
 
       // Label the source with the target labels.
       LabelSet& labelSet = this->SourceLabels[source];
@@ -2315,7 +2319,7 @@ bool cmCTestCoverageHandler::IsFilteredOut(std::string const& source)
 
   // The source is filtered out if it does not have any labels in
   // common with the filter set.
-  std::string shortSrc = this->CTest->GetShortPathToFile(source.c_str());
+  std::string shortSrc = this->CTest->GetShortPathToFile(source);
   auto li = this->SourceLabels.find(shortSrc);
   if (li != this->SourceLabels.end()) {
     return !this->IntersectsFilter(li->second);
@@ -2337,14 +2341,14 @@ std::set<std::string> cmCTestCoverageHandler::FindUncoveredFiles(
     std::vector<std::string> files = gl.GetFiles();
     for (std::string const& f : files) {
       if (this->ShouldIDoCoverage(f, cont->SourceDir, cont->BinaryDir)) {
-        extraMatches.insert(this->CTest->GetShortPathToFile(f.c_str()));
+        extraMatches.insert(this->CTest->GetShortPathToFile(f));
       }
     }
   }
 
   if (!extraMatches.empty()) {
     for (auto const& i : cont->TotalCoverage) {
-      std::string shortPath = this->CTest->GetShortPathToFile(i.first.c_str());
+      std::string shortPath = this->CTest->GetShortPathToFile(i.first);
       extraMatches.erase(shortPath);
     }
   }

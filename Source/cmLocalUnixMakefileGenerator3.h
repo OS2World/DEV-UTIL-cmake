@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmLocalUnixMakefileGenerator3_h
-#define cmLocalUnixMakefileGenerator3_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -20,6 +19,7 @@ class cmCustomCommandGenerator;
 class cmGeneratorTarget;
 class cmGlobalGenerator;
 class cmMakefile;
+class cmSourceFile;
 
 /** \class cmLocalUnixMakefileGenerator3
  * \brief Write a LocalUnix makefiles.
@@ -33,6 +33,8 @@ public:
   cmLocalUnixMakefileGenerator3(cmGlobalGenerator* gg, cmMakefile* mf);
   ~cmLocalUnixMakefileGenerator3() override;
 
+  std::string GetConfigName() const;
+
   void ComputeHomeRelativeOutputPath() override;
 
   /**
@@ -43,6 +45,12 @@ public:
   // this returns the relative path between the HomeOutputDirectory and this
   // local generators StartOutputDirectory
   const std::string& GetHomeRelativeOutputPath();
+
+  /**
+   * Convert a file path to a Makefile target or dependency with
+   * escaping and quoting suitable for the generator's make tool.
+   */
+  std::string ConvertToMakefilePath(std::string const& path) const;
 
   // Write out a make rule
   void WriteMakeRule(std::ostream& os, const char* comment,
@@ -75,7 +83,7 @@ public:
   void SetBorlandMakeCurlyHack(bool b) { this->BorlandMakeCurlyHack = b; }
 
   // used in writing out Cmake files such as WriteDirectoryInformation
-  static void WriteCMakeArgument(std::ostream& os, const char* s);
+  static void WriteCMakeArgument(std::ostream& os, const std::string& s);
 
   /** creates the common disclaimer text at the top of each makefile */
   void WriteDisclaimer(std::ostream& os);
@@ -287,6 +295,13 @@ private:
   bool ColorMakefile;
   bool SkipPreprocessedSourceRules;
   bool SkipAssemblySourceRules;
-};
 
-#endif
+  std::set<cmSourceFile const*>& GetCommandsVisited(
+    cmGeneratorTarget const* target)
+  {
+    return this->CommandsVisited[target];
+  };
+
+  std::map<cmGeneratorTarget const*, std::set<cmSourceFile const*>>
+    CommandsVisited;
+};

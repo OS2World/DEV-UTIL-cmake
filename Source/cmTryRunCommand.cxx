@@ -9,6 +9,7 @@
 #include "cmDuration.h"
 #include "cmMakefile.h"
 #include "cmMessageType.h"
+#include "cmProperty.h"
 #include "cmRange.h"
 #include "cmState.h"
 #include "cmStateTypes.h"
@@ -145,10 +146,10 @@ bool cmTryRunCommand::InitialPass(std::vector<std::string> const& argv,
       if (!this->OutputVariable.empty()) {
         // if the TryCompileCore saved output in this outputVariable then
         // prepend that output to this output
-        const char* compileOutput =
+        cmProp compileOutput =
           this->Makefile->GetDefinition(this->OutputVariable);
         if (compileOutput) {
-          runOutputContents = compileOutput + runOutputContents;
+          runOutputContents = *compileOutput + runOutputContents;
         }
         this->Makefile->AddDefinition(this->OutputVariable, runOutputContents);
       }
@@ -242,8 +243,7 @@ void cmTryRunCommand::DoNotRunExecutable(const std::string& runArgs,
                                        comment.c_str(), cmStateEnums::STRING);
 
     cmState* state = this->Makefile->GetState();
-    const char* existingValue =
-      state->GetCacheEntryValue(this->RunResultVariable);
+    cmProp existingValue = state->GetCacheEntryValue(this->RunResultVariable);
     if (existingValue) {
       state->SetCacheEntryProperty(this->RunResultVariable, "ADVANCED", "1");
     }
@@ -265,7 +265,7 @@ void cmTryRunCommand::DoNotRunExecutable(const std::string& runArgs,
         internalRunOutputName, "PLEASE_FILL_OUT-NOTFOUND", comment.c_str(),
         cmStateEnums::STRING);
       cmState* state = this->Makefile->GetState();
-      const char* existing = state->GetCacheEntryValue(internalRunOutputName);
+      cmProp existing = state->GetCacheEntryValue(internalRunOutputName);
       if (existing) {
         state->SetCacheEntryProperty(internalRunOutputName, "ADVANCED", "1");
       }
@@ -328,12 +328,12 @@ void cmTryRunCommand::DoNotRunExecutable(const std::string& runArgs,
       file << comment << "\n\n";
 
       file << "set( " << this->RunResultVariable << " \n     \""
-           << this->Makefile->GetDefinition(this->RunResultVariable)
+           << this->Makefile->GetSafeDefinition(this->RunResultVariable)
            << "\"\n     CACHE STRING \"Result from TRY_RUN\" FORCE)\n\n";
 
       if (out) {
         file << "set( " << internalRunOutputName << " \n     \""
-             << this->Makefile->GetDefinition(internalRunOutputName)
+             << this->Makefile->GetSafeDefinition(internalRunOutputName)
              << "\"\n     CACHE STRING \"Output from TRY_RUN\" FORCE)\n\n";
       }
       file.close();
@@ -354,6 +354,6 @@ void cmTryRunCommand::DoNotRunExecutable(const std::string& runArgs,
   }
 
   if (out) {
-    (*out) = this->Makefile->GetDefinition(internalRunOutputName);
+    (*out) = *this->Makefile->GetDefinition(internalRunOutputName);
   }
 }

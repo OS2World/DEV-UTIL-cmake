@@ -8,15 +8,17 @@
 #include "cmSystemTools.h"
 
 #if !defined(CMAKE_BOOTSTRAP)
+#  include <cm3p/zlib.h>
+
 #  include "cm_codecvt.hxx"
-#  include "cm_zlib.h"
 #endif
 
 cmGeneratedFileStream::cmGeneratedFileStream(Encoding encoding)
+  : OriginalLocale(getloc())
 {
 #ifndef CMAKE_BOOTSTRAP
   if (encoding != codecvt::None) {
-    imbue(std::locale(getloc(), new codecvt(encoding)));
+    imbue(std::locale(OriginalLocale, new codecvt(encoding)));
   }
 #else
   static_cast<void>(encoding);
@@ -121,10 +123,17 @@ void cmGeneratedFileStreamBase::Open(std::string const& name)
   // Create the name of the temporary file.
   this->TempName = name;
 #if defined(__VMS)
-  this->TempName += "_tmp";
+  this->TempName += "_";
 #else
-  this->TempName += ".tmp";
+  this->TempName += ".";
 #endif
+  if (!this->TempExt.empty()) {
+    this->TempName += this->TempExt;
+  } else {
+    char buf[64];
+    sprintf(buf, "tmp%05x", cmSystemTools::RandomSeed() & 0xFFFFF);
+    this->TempName += buf;
+  }
 
   // Make sure the temporary file that will be used is not present.
   cmSystemTools::RemoveFile(this->TempName);
@@ -180,6 +189,7 @@ int cmGeneratedFileStreamBase::CompressFile(std::string const& oldname,
   }
   FILE* ifs = cmsys::SystemTools::Fopen(oldname, "r");
   if (!ifs) {
+    gzclose(gf);
     return 0;
   }
   size_t res;
@@ -213,4 +223,20 @@ int cmGeneratedFileStreamBase::RenameFile(std::string const& oldname,
 void cmGeneratedFileStream::SetName(const std::string& fname)
 {
   this->Name = fname;
+}
+
+void cmGeneratedFileStream::SetTempExt(std::string const& ext)
+{
+  this->TempExt = ext;
+}
+
+void cmGeneratedFileStream::WriteRaw(std::string const& data)
+{
+#ifndef CMAKE_BOOTSTRAP
+  std::locale activeLocale = this->imbue(this->OriginalLocale);
+  this->write(data.data(), data.size());
+  this->imbue(activeLocale);
+#else
+  this->write(data.data(), data.size());
+#endif
 }

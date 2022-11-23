@@ -1,14 +1,13 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmJsonObjects_h
-#define cmJsonObjects_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
 #include <string>
 #include <vector>
 
-#include "cm_jsoncpp_value.h"
+#include <cm3p/json/value.h>
 
 class cmake;
 class cmGlobalGenerator;
@@ -23,5 +22,3 @@ extern void cmGetCMakeInputs(const cmGlobalGenerator* gg,
 extern Json::Value cmDumpCodeModel(const cmake* cm);
 extern Json::Value cmDumpCTestInfo(const cmake* cm);
 extern Json::Value cmDumpCMakeInputs(const cmake* cm);
-
-#endif

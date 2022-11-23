@@ -4,14 +4,17 @@
 
 #include <algorithm>
 #include <array>
-#include <cstring>
 #include <utility>
 
-#include "cmAlgorithms.h"
+#include <cmext/algorithm>
+
 #include "cmExecutionStatus.h"
 #include "cmMakefile.h"
+#include "cmMessageType.h"
+#include "cmProperty.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
+#include "cmake.h"
 
 cmFindCommon::PathGroup cmFindCommon::PathGroup::All("ALL");
 cmFindCommon::PathLabel cmFindCommon::PathLabel::PackageRoot(
@@ -52,11 +55,26 @@ cmFindCommon::cmFindCommon(cmExecutionStatus& status)
   this->SearchAppBundleLast = false;
 
   this->InitializeSearchPathGroups();
+
+  this->DebugMode = false;
 }
 
 void cmFindCommon::SetError(std::string const& e)
 {
   this->Status.SetError(e);
+}
+
+void cmFindCommon::DebugMessage(std::string const& msg) const
+{
+  if (this->Makefile) {
+    this->Makefile->IssueMessage(MessageType::LOG, msg);
+  }
+}
+
+bool cmFindCommon::ComputeIfDebugModeWanted()
+{
+  return this->Makefile->IsOn("CMAKE_FIND_DEBUG_MODE") ||
+    this->Makefile->GetCMakeInstance()->GetDebugFindOutput();
 }
 
 void cmFindCommon::InitializeSearchPathGroups()
@@ -165,9 +183,9 @@ void cmFindCommon::SelectDefaultSearchModes()
   };
 
   for (auto& path : search_paths) {
-    const char* def = this->Makefile->GetDefinition(path.second);
+    cmProp def = this->Makefile->GetDefinition(path.second);
     if (def) {
-      path.first = !cmIsOn(def);
+      path.first = !cmIsOn(*def);
     }
   }
 }
@@ -185,16 +203,15 @@ void cmFindCommon::RerootPaths(std::vector<std::string>& paths)
     return;
   }
 
-  const char* sysroot = this->Makefile->GetDefinition("CMAKE_SYSROOT");
-  const char* sysrootCompile =
+  cmProp sysroot = this->Makefile->GetDefinition("CMAKE_SYSROOT");
+  cmProp sysrootCompile =
     this->Makefile->GetDefinition("CMAKE_SYSROOT_COMPILE");
-  const char* sysrootLink =
-    this->Makefile->GetDefinition("CMAKE_SYSROOT_LINK");
-  const char* rootPath = this->Makefile->GetDefinition("CMAKE_FIND_ROOT_PATH");
-  const bool noSysroot = !sysroot || !*sysroot;
-  const bool noCompileSysroot = !sysrootCompile || !*sysrootCompile;
-  const bool noLinkSysroot = !sysrootLink || !*sysrootLink;
-  const bool noRootPath = !rootPath || !*rootPath;
+  cmProp sysrootLink = this->Makefile->GetDefinition("CMAKE_SYSROOT_LINK");
+  cmProp rootPath = this->Makefile->GetDefinition("CMAKE_FIND_ROOT_PATH");
+  const bool noSysroot = !cmNonempty(sysroot);
+  const bool noCompileSysroot = !cmNonempty(sysrootCompile);
+  const bool noLinkSysroot = !cmNonempty(sysrootLink);
+  const bool noRootPath = !cmNonempty(rootPath);
   if (noSysroot && noCompileSysroot && noLinkSysroot && noRootPath) {
     return;
   }
@@ -202,23 +219,22 @@ void cmFindCommon::RerootPaths(std::vector<std::string>& paths)
   // Construct the list of path roots with no trailing slashes.
   std::vector<std::string> roots;
   if (rootPath) {
-    cmExpandList(rootPath, roots);
+    cmExpandList(*rootPath, roots);
   }
   if (sysrootCompile) {
-    roots.emplace_back(sysrootCompile);
+    roots.emplace_back(*sysrootCompile);
   }
   if (sysrootLink) {
-    roots.emplace_back(sysrootLink);
+    roots.emplace_back(*sysrootLink);
   }
   if (sysroot) {
-    roots.emplace_back(sysroot);
+    roots.emplace_back(*sysroot);
   }
   for (std::string& r : roots) {
     cmSystemTools::ConvertToUnixSlashes(r);
   }
 
-  const char* stagePrefix =
-    this->Makefile->GetDefinition("CMAKE_STAGING_PREFIX");
+  cmProp stagePrefix = this->Makefile->GetDefinition("CMAKE_STAGING_PREFIX");
 
   // Copy the original set of unrooted paths.
   std::vector<std::string> unrootedPaths = paths;
@@ -231,7 +247,7 @@ void cmFindCommon::RerootPaths(std::vector<std::string>& paths)
       // a user home directory or is empty.
       std::string rootedDir;
       if (cmSystemTools::IsSubDirectory(up, r) ||
-          (stagePrefix && cmSystemTools::IsSubDirectory(up, stagePrefix))) {
+          (stagePrefix && cmSystemTools::IsSubDirectory(up, *stagePrefix))) {
         rootedDir = up;
       } else if (!up.empty() && up[0] != '~') {
         // Start with the new root.
@@ -249,7 +265,7 @@ void cmFindCommon::RerootPaths(std::vector<std::string>& paths)
   // If searching both rooted and unrooted paths add the original
   // paths again.
   if (this->FindRootPathMode == RootPathModeBoth) {
-    cmAppend(paths, unrootedPaths);
+    cm::append(paths, unrootedPaths);
   }
 }
 
@@ -262,12 +278,7 @@ void cmFindCommon::GetIgnoredPaths(std::vector<std::string>& ignore)
   // Construct the list of path roots with no trailing slashes.
   for (const char** pathName = paths; *pathName; ++pathName) {
     // Get the list of paths to ignore from the variable.
-    const char* ignorePath = this->Makefile->GetDefinition(*pathName);
-    if ((ignorePath == nullptr) || (strlen(ignorePath) == 0)) {
-      continue;
-    }
-
-    cmExpandList(ignorePath, ignore);
+    this->Makefile->GetDefExpandList(*pathName, ignore);
   }
 
   for (std::string& i : ignore) {

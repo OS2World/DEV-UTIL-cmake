@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmPropertyMap_h
-#define cmPropertyMap_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -9,6 +8,8 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
+#include "cmProperty.h"
 
 /** \class cmPropertyMap
  * \brief String property map.
@@ -27,11 +28,11 @@ public:
   void SetProperty(const std::string& name, const char* value);
 
   //! Append to the property value
-  void AppendProperty(const std::string& name, const char* value,
+  void AppendProperty(const std::string& name, const std::string& value,
                       bool asString = false);
 
   //! Get the property value
-  const char* GetPropertyValue(const std::string& name) const;
+  cmProp GetPropertyValue(const std::string& name) const;
 
   //! Remove the property @a name from the map
   void RemoveProperty(const std::string& name);
@@ -47,5 +48,3 @@ public:
 private:
   std::unordered_map<std::string, std::string> Map_;
 };
-
-#endif

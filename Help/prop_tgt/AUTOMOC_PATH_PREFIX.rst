@@ -1,6 +1,8 @@
 AUTOMOC_PATH_PREFIX
 -------------------
 
+.. versionadded:: 3.16
+
 When this property is ``ON``, CMake will generate the ``-p`` path prefix
 option for ``moc`` on :prop_tgt:`AUTOMOC` enabled Qt targets.
 
@@ -21,7 +23,7 @@ with Qt.
 Reproducible builds
 ^^^^^^^^^^^^^^^^^^^
 
-For reproducible builds is is recommended to keep headers that are ``moc``
+For reproducible builds it is recommended to keep headers that are ``moc``
 compiled in one of the target
 :command:`include directories <target_include_directories>` and set
 :prop_tgt:`AUTOMOC_PATH_PREFIX` to ``ON``.  This ensures that:

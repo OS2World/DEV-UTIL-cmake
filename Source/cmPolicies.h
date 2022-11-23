@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmPolicies_h
-#define cmPolicies_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -290,7 +289,58 @@ class cmMakefile;
   SELECT(POLICY, CMP0097,                                                     \
          "ExternalProject_Add with GIT_SUBMODULES \"\" initializes no "       \
          "submodules.",                                                       \
-         3, 16, 0, cmPolicies::WARN)
+         3, 16, 0, cmPolicies::WARN)                                          \
+  SELECT(POLICY, CMP0098,                                                     \
+         "FindFLEX runs flex in CMAKE_CURRENT_BINARY_DIR when executing.", 3, \
+         17, 0, cmPolicies::WARN)                                             \
+  SELECT(POLICY, CMP0099,                                                     \
+         "Link properties are transitive over private dependency on static "  \
+         "libraries.",                                                        \
+         3, 17, 0, cmPolicies::WARN)                                          \
+  SELECT(POLICY, CMP0100, "Let AUTOMOC and AUTOUIC process .hh files.", 3,    \
+         17, 0, cmPolicies::WARN)                                             \
+  SELECT(POLICY, CMP0101,                                                     \
+         "target_compile_options honors BEFORE keyword in all scopes.", 3,    \
+         17, 0, cmPolicies::WARN)                                             \
+  SELECT(POLICY, CMP0102,                                                     \
+         "mark_as_advanced() does nothing if a cache entry does not exist.",  \
+         3, 17, 0, cmPolicies::WARN)                                          \
+  SELECT(POLICY, CMP0103,                                                     \
+         "Multiple export() with same FILE without APPEND is not allowed.",   \
+         3, 18, 0, cmPolicies::WARN)                                          \
+  SELECT(POLICY, CMP0104,                                                     \
+         "CMAKE_CUDA_ARCHITECTURES now detected for NVCC, empty "             \
+         "CUDA_ARCHITECTURES not allowed.",                                   \
+         3, 18, 0, cmPolicies::WARN)                                          \
+  SELECT(POLICY, CMP0105, "Device link step uses the link options.", 3, 18,   \
+         0, cmPolicies::WARN)                                                 \
+  SELECT(POLICY, CMP0106, "The Documentation module is removed.", 3, 18, 0,   \
+         cmPolicies::WARN)                                                    \
+  SELECT(POLICY, CMP0107, "An ALIAS target cannot overwrite another target.", \
+         3, 18, 0, cmPolicies::WARN)                                          \
+  SELECT(POLICY, CMP0108, "A target cannot link to itself through an alias.", \
+         3, 18, 0, cmPolicies::WARN)                                          \
+  SELECT(POLICY, CMP0109,                                                     \
+         "find_program() requires permission to execute but not to read.", 3, \
+         19, 0, cmPolicies::WARN)                                             \
+  SELECT(POLICY, CMP0110,                                                     \
+         "add_test() supports arbitrary characters in test names.", 3, 19, 0, \
+         cmPolicies::WARN)                                                    \
+  SELECT(POLICY, CMP0111,                                                     \
+         "An imported target missing its location property fails during "     \
+         "generation.",                                                       \
+         3, 19, 0, cmPolicies::WARN)                                          \
+  SELECT(POLICY, CMP0112,                                                     \
+         "Target file component generator expressions do not add target "     \
+         "dependencies.",                                                     \
+         3, 19, 0, cmPolicies::WARN)                                          \
+  SELECT(POLICY, CMP0113,                                                     \
+         "Makefile generators do not repeat custom commands from target "     \
+         "dependencies.",                                                     \
+         3, 19, 0, cmPolicies::WARN)                                          \
+  SELECT(POLICY, CMP0114,                                                     \
+         "ExternalProject step targets fully adopt their steps.", 3, 19, 0,   \
+         cmPolicies::WARN)
 
 #define CM_SELECT_ID(F, A1, A2, A3, A4, A5, A6) F(A1)
 #define CM_FOR_EACH_POLICY_ID(POLICY)                                         \
@@ -319,7 +369,13 @@ class cmMakefile;
   F(CMP0076)                                                                  \
   F(CMP0081)                                                                  \
   F(CMP0083)                                                                  \
-  F(CMP0095)
+  F(CMP0095)                                                                  \
+  F(CMP0099)                                                                  \
+  F(CMP0104)                                                                  \
+  F(CMP0105)                                                                  \
+  F(CMP0108)                                                                  \
+  F(CMP0112)                                                                  \
+  F(CMP0113)
 
 /** \class cmPolicies
  * \brief Handles changes in CMake behavior and policies
@@ -362,12 +418,20 @@ public:
   //! Get the default status for a policy
   static cmPolicies::PolicyStatus GetPolicyStatus(cmPolicies::PolicyID id);
 
+  enum class WarnCompat
+  {
+    Off,
+    On
+  };
+
   //! Set a policy level for this listfile
   static bool ApplyPolicyVersion(cmMakefile* mf,
                                  std::string const& version_min,
-                                 std::string const& version_max);
+                                 std::string const& version_max,
+                                 WarnCompat warnCompat);
   static bool ApplyPolicyVersion(cmMakefile* mf, unsigned int majorVer,
-                                 unsigned int minorVer, unsigned int patchVer);
+                                 unsigned int minorVer, unsigned int patchVer,
+                                 WarnCompat warnCompat);
 
   //! return a warning string for a given policy
   static std::string GetPolicyWarning(cmPolicies::PolicyID id);
@@ -392,5 +456,3 @@ public:
     std::bitset<cmPolicies::CMPCOUNT * POLICY_STATUS_COUNT> Status;
   };
 };
-
-#endif

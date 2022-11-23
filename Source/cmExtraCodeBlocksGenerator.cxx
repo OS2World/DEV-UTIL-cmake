@@ -3,9 +3,12 @@
 #include "cmExtraCodeBlocksGenerator.h"
 
 #include <map>
+#include <memory>
 #include <ostream>
 #include <set>
 #include <utility>
+
+#include <cmext/algorithm>
 
 #include "cmAlgorithms.h"
 #include "cmGeneratedFileStream.h"
@@ -13,6 +16,7 @@
 #include "cmGlobalGenerator.h"
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
+#include "cmProperty.h"
 #include "cmRange.h"
 #include "cmSourceFile.h"
 #include "cmStateTypes.h"
@@ -92,7 +96,7 @@ struct Tree
   std::string path; // only one component of the path
   std::vector<Tree> folders;
   std::set<std::string> files;
-  void InsertPath(const std::vector<std::string>& splitted,
+  void InsertPath(const std::vector<std::string>& split,
                   std::vector<std::string>::size_type start,
                   const std::string& fileName);
   void BuildVirtualFolder(cmXMLWriter& xml) const;
@@ -103,34 +107,34 @@ struct Tree
                      const std::string& fsPath) const;
 };
 
-void Tree::InsertPath(const std::vector<std::string>& splitted,
+void Tree::InsertPath(const std::vector<std::string>& split,
                       std::vector<std::string>::size_type start,
                       const std::string& fileName)
 {
-  if (start == splitted.size()) {
+  if (start == split.size()) {
     files.insert(fileName);
     return;
   }
   for (Tree& folder : folders) {
-    if (folder.path == splitted[start]) {
-      if (start + 1 < splitted.size()) {
-        folder.InsertPath(splitted, start + 1, fileName);
+    if (folder.path == split[start]) {
+      if (start + 1 < split.size()) {
+        folder.InsertPath(split, start + 1, fileName);
         return;
       }
-      // last part of splitted
+      // last part of split
       folder.files.insert(fileName);
       return;
     }
   }
   // Not found in folders, thus insert
   Tree newFolder;
-  newFolder.path = splitted[start];
-  if (start + 1 < splitted.size()) {
-    newFolder.InsertPath(splitted, start + 1, fileName);
+  newFolder.path = split[start];
+  if (start + 1 < split.size()) {
+    newFolder.InsertPath(split, start + 1, fileName);
     folders.push_back(newFolder);
     return;
   }
-  // last part of splitted
+  // last part of split
   newFolder.files.insert(fileName);
   folders.push_back(newFolder);
 }
@@ -209,23 +213,23 @@ void cmExtraCodeBlocksGenerator::CreateNewProjectFile(
     // Collect all files
     std::vector<std::string> listFiles;
     for (cmLocalGenerator* lg : it.second) {
-      cmAppend(listFiles, lg->GetMakefile()->GetListFiles());
+      cm::append(listFiles, lg->GetMakefile()->GetListFiles());
     }
 
     // Convert
     for (std::string const& listFile : listFiles) {
       // don't put cmake's own files into the project (#12110):
-      if (listFile.find(cmSystemTools::GetCMakeRoot()) == 0) {
+      if (cmHasPrefix(listFile, cmSystemTools::GetCMakeRoot())) {
         continue;
       }
 
       const std::string& relative = cmSystemTools::RelativePath(
         it.second[0]->GetSourceDirectory(), listFile);
-      std::vector<std::string> splitted;
-      cmSystemTools::SplitPath(relative, splitted, false);
+      std::vector<std::string> split;
+      cmSystemTools::SplitPath(relative, split, false);
       // Split filename from path
-      std::string fileName = *(splitted.end() - 1);
-      splitted.erase(splitted.end() - 1, splitted.end());
+      std::string fileName = *(split.end() - 1);
+      split.erase(split.end() - 1, split.end());
 
       // We don't want paths with CMakeFiles in them
       // or do we?
@@ -233,13 +237,12 @@ void cmExtraCodeBlocksGenerator::CreateNewProjectFile(
       //
       // Also we can disable external (outside the project) files by setting ON
       // CMAKE_CODEBLOCKS_EXCLUDE_EXTERNAL_FILES variable.
-      const bool excludeExternal =
-        cmIsOn(it.second[0]->GetMakefile()->GetSafeDefinition(
-          "CMAKE_CODEBLOCKS_EXCLUDE_EXTERNAL_FILES"));
-      if (!splitted.empty() &&
+      const bool excludeExternal = it.second[0]->GetMakefile()->IsOn(
+        "CMAKE_CODEBLOCKS_EXCLUDE_EXTERNAL_FILES");
+      if (!split.empty() &&
           (!excludeExternal || (relative.find("..") == std::string::npos)) &&
           relative.find("CMakeFiles") == std::string::npos) {
-        tree.InsertPath(splitted, 1, fileName);
+        tree.InsertPath(split, 1, fileName);
       }
     }
   }
@@ -283,8 +286,8 @@ void cmExtraCodeBlocksGenerator::CreateNewProjectFile(
   // add all executable and library targets and some of the GLOBAL
   // and UTILITY targets
   for (cmLocalGenerator* lg : lgs) {
-    const std::vector<cmGeneratorTarget*>& targets = lg->GetGeneratorTargets();
-    for (cmGeneratorTarget* target : targets) {
+    const auto& targets = lg->GetGeneratorTargets();
+    for (const auto& target : targets) {
       std::string targetName = target->GetName();
       switch (target->GetType()) {
         case cmStateEnums::GLOBAL_TARGET: {
@@ -298,11 +301,11 @@ void cmExtraCodeBlocksGenerator::CreateNewProjectFile(
         case cmStateEnums::UTILITY:
           // Add all utility targets, except the Nightly/Continuous/
           // Experimental-"sub"targets as e.g. NightlyStart
-          if (((targetName.find("Nightly") == 0) &&
+          if ((cmHasLiteralPrefix(targetName, "Nightly") &&
                (targetName != "Nightly")) ||
-              ((targetName.find("Continuous") == 0) &&
+              (cmHasLiteralPrefix(targetName, "Continuous") &&
                (targetName != "Continuous")) ||
-              ((targetName.find("Experimental") == 0) &&
+              (cmHasLiteralPrefix(targetName, "Experimental") &&
                (targetName != "Experimental"))) {
             break;
           }
@@ -315,7 +318,7 @@ void cmExtraCodeBlocksGenerator::CreateNewProjectFile(
         case cmStateEnums::SHARED_LIBRARY:
         case cmStateEnums::MODULE_LIBRARY:
         case cmStateEnums::OBJECT_LIBRARY: {
-          cmGeneratorTarget* gt = target;
+          cmGeneratorTarget* gt = target.get();
           this->AppendTarget(xml, targetName, gt, make, lg, compiler,
                              makeArgs);
           std::string fastTarget = cmStrCat(targetName, "/fast");
@@ -341,8 +344,8 @@ void cmExtraCodeBlocksGenerator::CreateNewProjectFile(
 
   for (cmLocalGenerator* lg : lgs) {
     cmMakefile* makefile = lg->GetMakefile();
-    const std::vector<cmGeneratorTarget*>& targets = lg->GetGeneratorTargets();
-    for (cmGeneratorTarget* target : targets) {
+    const auto& targets = lg->GetGeneratorTargets();
+    for (const auto& target : targets) {
       switch (target->GetType()) {
         case cmStateEnums::EXECUTABLE:
         case cmStateEnums::STATIC_LIBRARY:
@@ -352,13 +355,12 @@ void cmExtraCodeBlocksGenerator::CreateNewProjectFile(
         case cmStateEnums::UTILITY: // can have sources since 2.6.3
         {
           std::vector<cmSourceFile*> sources;
-          cmGeneratorTarget* gt = target;
-          gt->GetSourceFiles(sources,
-                             makefile->GetSafeDefinition("CMAKE_BUILD_TYPE"));
+          target->GetSourceFiles(
+            sources, makefile->GetSafeDefinition("CMAKE_BUILD_TYPE"));
           for (cmSourceFile* s : sources) {
             // don't add source files from UTILITY target which have the
             // GENERATED property set:
-            if (gt->GetType() == cmStateEnums::UTILITY &&
+            if (target->GetType() == cmStateEnums::UTILITY &&
                 s->GetIsGenerated()) {
               continue;
             }
@@ -368,7 +370,7 @@ void cmExtraCodeBlocksGenerator::CreateNewProjectFile(
             std::string lang = s->GetOrDetermineLanguage();
             if (lang == "C" || lang == "CXX" || lang == "CUDA") {
               std::string const& srcext = s->GetExtension();
-              isCFile = cm->IsSourceExtension(srcext);
+              isCFile = cm->IsACLikeSourceExtension(srcext);
             }
 
             std::string const& fullPath = s->ResolveFullPath();
@@ -378,9 +380,8 @@ void cmExtraCodeBlocksGenerator::CreateNewProjectFile(
               cmSystemTools::RelativePath(lg->GetSourceDirectory(), fullPath);
             // Do not add this file if it has ".." in relative path and
             // if CMAKE_CODEBLOCKS_EXCLUDE_EXTERNAL_FILES variable is on.
-            const bool excludeExternal =
-              cmIsOn(lg->GetMakefile()->GetSafeDefinition(
-                "CMAKE_CODEBLOCKS_EXCLUDE_EXTERNAL_FILES"));
+            const bool excludeExternal = lg->GetMakefile()->IsOn(
+              "CMAKE_CODEBLOCKS_EXCLUDE_EXTERNAL_FILES");
             if (excludeExternal &&
                 (relative.find("..") != std::string::npos)) {
               continue;
@@ -391,7 +392,7 @@ void cmExtraCodeBlocksGenerator::CreateNewProjectFile(
             }
 
             CbpUnit& cbpUnit = allFiles[fullPath];
-            cbpUnit.Targets.push_back(target);
+            cbpUnit.Targets.push_back(target.get());
           }
         }
         default: // intended fallthrough
@@ -496,15 +497,15 @@ void cmExtraCodeBlocksGenerator::AppendTarget(
     if (target->GetType() == cmStateEnums::EXECUTABLE) {
       // Determine the directory where the executable target is created, and
       // set the working directory to this dir.
-      const char* runtimeOutputDir =
+      cmProp runtimeOutputDir =
         makefile->GetDefinition("CMAKE_RUNTIME_OUTPUT_DIRECTORY");
-      if (runtimeOutputDir != nullptr) {
-        workingDir = runtimeOutputDir;
+      if (runtimeOutputDir) {
+        workingDir = *runtimeOutputDir;
       } else {
-        const char* executableOutputDir =
+        cmProp executableOutputDir =
           makefile->GetDefinition("EXECUTABLE_OUTPUT_PATH");
-        if (executableOutputDir != nullptr) {
-          workingDir = executableOutputDir;
+        if (executableOutputDir) {
+          workingDir = *executableOutputDir;
         }
       }
     }
@@ -558,19 +559,19 @@ void cmExtraCodeBlocksGenerator::AppendTarget(
     {
       std::vector<std::string> includes;
       lg->GetIncludeDirectories(includes, target, "C", buildType);
-      cmAppend(allIncludeDirs, includes);
+      cm::append(allIncludeDirs, includes);
     }
 
     std::string systemIncludeDirs = makefile->GetSafeDefinition(
       "CMAKE_EXTRA_GENERATOR_CXX_SYSTEM_INCLUDE_DIRS");
     if (!systemIncludeDirs.empty()) {
-      cmAppend(allIncludeDirs, cmExpandedList(systemIncludeDirs));
+      cm::append(allIncludeDirs, cmExpandedList(systemIncludeDirs));
     }
 
     systemIncludeDirs = makefile->GetSafeDefinition(
       "CMAKE_EXTRA_GENERATOR_C_SYSTEM_INCLUDE_DIRS");
     if (!systemIncludeDirs.empty()) {
-      cmAppend(allIncludeDirs, cmExpandedList(systemIncludeDirs));
+      cm::append(allIncludeDirs, cmExpandedList(systemIncludeDirs));
     }
 
     auto end = cmRemoveDuplicates(allIncludeDirs);
@@ -689,7 +690,8 @@ int cmExtraCodeBlocksGenerator::GetCBTargetType(cmGeneratorTarget* target)
 {
   switch (target->GetType()) {
     case cmStateEnums::EXECUTABLE:
-      if ((target->GetPropertyAsBool("WIN32_EXECUTABLE")) ||
+      if ((target->IsWin32Executable(
+            target->Makefile->GetSafeDefinition("CMAKE_BUILD_TYPE"))) ||
           (target->GetPropertyAsBool("MACOSX_BUNDLE"))) {
         return 0;
       }
@@ -721,7 +723,7 @@ std::string cmExtraCodeBlocksGenerator::BuildMakeCommand(
   if (generator == "NMake Makefiles" || generator == "NMake Makefiles JOM") {
     // For Windows ConvertToOutputPath already adds quotes when required.
     // These need to be escaped, see
-    // https://gitlab.kitware.com/cmake/cmake/issues/13952
+    // https://gitlab.kitware.com/cmake/cmake/-/issues/13952
     std::string makefileName = cmSystemTools::ConvertToOutputPath(makefile);
     command += " /NOLOGO /f ";
     command += makefileName;
@@ -729,7 +731,7 @@ std::string cmExtraCodeBlocksGenerator::BuildMakeCommand(
     command += target;
   } else if (generator == "MinGW Makefiles") {
     // no escaping of spaces in this case, see
-    // https://gitlab.kitware.com/cmake/cmake/issues/10014
+    // https://gitlab.kitware.com/cmake/cmake/-/issues/10014
     std::string const& makefileName = makefile;
     command += " -f \"";
     command += makefileName;

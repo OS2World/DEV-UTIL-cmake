@@ -7,8 +7,9 @@
 #include "cmsys/FStream.hxx"
 
 #include "cmFileTime.h"
-#include "cmLocalGenerator.h"
+#include "cmLocalUnixMakefileGenerator3.h"
 #include "cmMakefile.h"
+#include "cmProperty.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
 
@@ -22,8 +23,9 @@
 
 cmDependsC::cmDependsC() = default;
 
-cmDependsC::cmDependsC(cmLocalGenerator* lg, const std::string& targetDir,
-                       const std::string& lang, const DependencyMap* validDeps)
+cmDependsC::cmDependsC(cmLocalUnixMakefileGenerator3* lg,
+                       const std::string& targetDir, const std::string& lang,
+                       const DependencyMap* validDeps)
   : cmDepends(lg, targetDir)
   , ValidDeps(validDeps)
 {
@@ -37,13 +39,13 @@ cmDependsC::cmDependsC(cmLocalGenerator* lg, const std::string& targetDir,
   std::string complainRegex = "^$";
   {
     std::string scanRegexVar = cmStrCat("CMAKE_", lang, "_INCLUDE_REGEX_SCAN");
-    if (const char* sr = mf->GetDefinition(scanRegexVar)) {
-      scanRegex = sr;
+    if (cmProp sr = mf->GetDefinition(scanRegexVar)) {
+      scanRegex = *sr;
     }
     std::string complainRegexVar =
       cmStrCat("CMAKE_", lang, "_INCLUDE_REGEX_COMPLAIN");
-    if (const char* cr = mf->GetDefinition(complainRegexVar)) {
-      complainRegex = cr;
+    if (cmProp cr = mf->GetDefinition(complainRegexVar)) {
+      complainRegex = *cr;
     }
   }
 
@@ -211,18 +213,18 @@ bool cmDependsC::WriteDependencies(const std::set<std::string>& sources,
   // written by the original local generator for this directory
   // convert the dependencies to paths relative to the home output
   // directory.  We must do the same here.
-  std::string obj_m = cmSystemTools::ConvertToOutputPath(obj_i);
-  internalDepends << obj_i << std::endl;
+  std::string obj_m = this->LocalGenerator->ConvertToMakefilePath(obj_i);
+  internalDepends << obj_i << '\n';
 
   for (std::string const& dep : dependencies) {
     makeDepends << obj_m << ": "
-                << cmSystemTools::ConvertToOutputPath(
+                << this->LocalGenerator->ConvertToMakefilePath(
                      this->LocalGenerator->MaybeConvertToRelativePath(binDir,
                                                                       dep))
-                << std::endl;
-    internalDepends << " " << dep << std::endl;
+                << '\n';
+    internalDepends << ' ' << dep << '\n';
   }
-  makeDepends << std::endl;
+  makeDepends << '\n';
 
   return true;
 }
@@ -264,19 +266,19 @@ void cmDependsC::ReadCacheFile()
       // file doesn't exist, check that the regular expressions
       // haven't changed
       else if (!res) {
-        if (line.find(INCLUDE_REGEX_LINE_MARKER) == 0) {
+        if (cmHasLiteralPrefix(line, INCLUDE_REGEX_LINE_MARKER)) {
           if (line != this->IncludeRegexLineString) {
             return;
           }
-        } else if (line.find(INCLUDE_REGEX_SCAN_MARKER) == 0) {
+        } else if (cmHasLiteralPrefix(line, INCLUDE_REGEX_SCAN_MARKER)) {
           if (line != this->IncludeRegexScanString) {
             return;
           }
-        } else if (line.find(INCLUDE_REGEX_COMPLAIN_MARKER) == 0) {
+        } else if (cmHasLiteralPrefix(line, INCLUDE_REGEX_COMPLAIN_MARKER)) {
           if (line != this->IncludeRegexComplainString) {
             return;
           }
-        } else if (line.find(INCLUDE_REGEX_TRANSFORM_MARKER) == 0) {
+        } else if (cmHasLiteralPrefix(line, INCLUDE_REGEX_TRANSFORM_MARKER)) {
           if (line != this->IncludeRegexTransformString) {
             return;
           }
@@ -312,17 +314,17 @@ void cmDependsC::WriteCacheFile() const
 
   for (auto const& fileIt : this->FileCache) {
     if (fileIt.second.Used) {
-      cacheOut << fileIt.first << std::endl;
+      cacheOut << fileIt.first << '\n';
 
       for (UnscannedEntry const& inc : fileIt.second.UnscannedEntries) {
-        cacheOut << inc.FileName << std::endl;
+        cacheOut << inc.FileName << '\n';
         if (inc.QuotedLocation.empty()) {
-          cacheOut << "-" << std::endl;
+          cacheOut << '-' << '\n';
         } else {
-          cacheOut << inc.QuotedLocation << std::endl;
+          cacheOut << inc.QuotedLocation << '\n';
         }
       }
-      cacheOut << std::endl;
+      cacheOut << '\n';
     }
   }
 }
@@ -383,9 +385,7 @@ void cmDependsC::SetupTransforms()
   // Get the transformation rules.
   std::vector<std::string> transformRules;
   cmMakefile* mf = this->LocalGenerator->GetMakefile();
-  if (const char* xform = mf->GetDefinition("CMAKE_INCLUDE_TRANSFORMS")) {
-    cmExpandList(xform, transformRules, true);
-  }
+  mf->GetDefExpandList("CMAKE_INCLUDE_TRANSFORMS", transformRules, true);
   for (std::string const& tr : transformRules) {
     this->ParseTransform(tr);
   }

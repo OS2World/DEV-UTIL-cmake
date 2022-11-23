@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmCTestTestCommand_h
-#define cmCTestTestCommand_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -55,10 +54,10 @@ protected:
   std::string ExcludeFixtureSetup;
   std::string ExcludeFixtureCleanup;
   std::string ParallelLevel;
+  std::string Repeat;
   std::string ScheduleRandom;
   std::string StopTime;
   std::string TestLoad;
   std::string ResourceSpecFile;
+  bool StopOnFailure = false;
 };
-
-#endif

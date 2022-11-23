@@ -69,7 +69,7 @@ foreach(LANG IN ITEMS C CXX Fortran)
       if(CMAKE_SIZEOF_VOID_P EQUAL 8)
         set(_Intel_archdir intel64)
       else()
-        set(_Intel_archdir x86)
+        set(_Intel_archdir ia32)
       endif()
       set(_Intel_compiler_ver ${CMAKE_${LANG}_COMPILER_VERSION})
       if(WIN32)
@@ -291,6 +291,7 @@ if(MSVC)
         foreach(crt
             "${MSVC_CRT_DIR}/msvcp${v}_1.dll"
             "${MSVC_CRT_DIR}/msvcp${v}_2.dll"
+            "${MSVC_CRT_DIR}/msvcp${v}_atomic_wait.dll"
             "${MSVC_CRT_DIR}/msvcp${v}_codecvt_ids.dll"
             "${MSVC_CRT_DIR}/vcruntime${v}_1.dll"
             )
@@ -319,6 +320,7 @@ if(MSVC)
         foreach(crt
             "${MSVC_CRT_DIR}/msvcp${v}_1d.dll"
             "${MSVC_CRT_DIR}/msvcp${v}_2d.dll"
+            "${MSVC_CRT_DIR}/msvcp${v}d_atomic_wait.dll"
             "${MSVC_CRT_DIR}/msvcp${v}d_codecvt_ids.dll"
             "${MSVC_CRT_DIR}/vcruntime${v}_1d.dll"
             )

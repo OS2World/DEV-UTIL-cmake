@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmOutputConverter_h
-#define cmOutputConverter_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -22,6 +21,7 @@ public:
   {
     SHELL,
     WATCOMQUOTE,
+    NINJAMULTI,
     RESPONSE
   };
   std::string ConvertToOutputFormat(cm::string_view source,
@@ -70,12 +70,14 @@ public:
     /** The target shell quoting uses extra single Quotes for Watcom tools.  */
     Shell_Flag_WatcomQuote = (1 << 7),
 
-    Shell_Flag_IsUnix = (1 << 8)
+    Shell_Flag_IsUnix = (1 << 8),
+
+    Shell_Flag_UnescapeNinjaConfiguration = (1 << 9),
   };
 
   std::string EscapeForShell(cm::string_view str, bool makeVars = false,
-                             bool forEcho = false,
-                             bool useWatcomQuote = false) const;
+                             bool forEcho = false, bool useWatcomQuote = false,
+                             bool unescapeNinjaConfiguration = false) const;
 
   static std::string EscapeForCMake(cm::string_view str);
 
@@ -91,7 +93,14 @@ public:
     FortranFormatFree
   };
   static FortranFormat GetFortranFormat(cm::string_view value);
-  static FortranFormat GetFortranFormat(const char* value);
+
+  enum class FortranPreprocess
+  {
+    Unset,
+    NotNeeded,
+    Needed
+  };
+  static FortranPreprocess GetFortranPreprocess(cm::string_view value);
 
 private:
   cmState* GetState() const;
@@ -107,5 +116,3 @@ private:
 
   bool LinkScriptShell;
 };
-
-#endif

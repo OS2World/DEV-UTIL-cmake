@@ -2,6 +2,11 @@
    file Copyright.txt or https://cmake.org/licensing for details.  */
 #include "cmConfigureFileCommand.h"
 
+#include <set>
+
+#include <cm/string_view>
+#include <cmext/string_view>
+
 #include "cmExecutionStatus.h"
 #include "cmMakefile.h"
 #include "cmMessageType.h"
@@ -55,6 +60,19 @@ bool cmConfigureFileCommand(std::vector<std::string> const& args,
   }
   bool copyOnly = false;
   bool escapeQuotes = false;
+  bool use_source_permissions = true;
+
+  static std::set<cm::string_view> noopOptions = {
+    /* Legacy.  */
+    "IMMEDIATE"_s,
+    /* Handled by NewLineStyle member.  */
+    "NEWLINE_STYLE"_s,
+    "LF"_s,
+    "UNIX"_s,
+    "CRLF"_s,
+    "WIN32"_s,
+    "DOS"_s,
+  };
 
   std::string unknown_args;
   bool atOnly = false;
@@ -70,12 +88,10 @@ bool cmConfigureFileCommand(std::vector<std::string> const& args,
       escapeQuotes = true;
     } else if (args[i] == "@ONLY") {
       atOnly = true;
-    } else if (args[i] == "IMMEDIATE") {
-      /* Ignore legacy option.  */
-    } else if (args[i] == "NEWLINE_STYLE" || args[i] == "LF" ||
-               args[i] == "UNIX" || args[i] == "CRLF" || args[i] == "WIN32" ||
-               args[i] == "DOS") {
-      /* Options handled by NewLineStyle member above.  */
+    } else if (args[i] == "NO_SOURCE_PERMISSIONS") {
+      use_source_permissions = false;
+    } else if (noopOptions.find(args[i]) != noopOptions.end()) {
+      /* Ignore no-op options.  */
     } else {
       unknown_args += " ";
       unknown_args += args[i];
@@ -89,7 +105,8 @@ bool cmConfigureFileCommand(std::vector<std::string> const& args,
   }
 
   if (!status.GetMakefile().ConfigureFile(
-        inputFile, outputFile, copyOnly, atOnly, escapeQuotes, newLineStyle)) {
+        inputFile, outputFile, copyOnly, atOnly, escapeQuotes,
+        use_source_permissions, newLineStyle)) {
     status.SetError("Problem configuring file");
     return false;
   }

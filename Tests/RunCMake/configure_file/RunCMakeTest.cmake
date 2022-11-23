@@ -15,6 +15,7 @@ run_cmake(NewLineStyle-NoArg)
 run_cmake(NewLineStyle-WrongArg)
 run_cmake(NewLineStyle-ValidArg)
 run_cmake(NewLineStyle-COPYONLY)
+run_cmake(NoSourcePermissions)
 
 if(RunCMake_GENERATOR MATCHES "Make")
   # Use a single build tree for a few tests without cleaning.
@@ -22,7 +23,7 @@ if(RunCMake_GENERATOR MATCHES "Make")
   set(RunCMake_TEST_NO_CLEAN 1)
   file(REMOVE_RECURSE "${RunCMake_TEST_BINARY_DIR}")
   file(MAKE_DIRECTORY "${RunCMake_TEST_BINARY_DIR}")
-  set(in_conf  "${RunCMake_TEST_BINARY_DIR}/ConfigureFileInput.txt.in")
+  set(in_conf  "${RunCMake_TEST_BINARY_DIR}/RerunCMake/ConfigureFileInput.txt.in")
   file(WRITE "${in_conf}" "1")
 
   message(STATUS "RerunCMake: first configuration...")
@@ -42,7 +43,7 @@ if(RunCMake_GENERATOR MATCHES "Make")
   run_cmake_command(RerunCMake-nowork ${CMAKE_COMMAND} --build .)
 
   message(STATUS "RerunCMake: remove configure_file output...")
-  file(REMOVE "${RunCMake_TEST_BINARY_DIR}/ConfigureFileOutput.txt")
+  file(REMOVE "${RunCMake_TEST_BINARY_DIR}/RerunCMake/ConfigureFileOutput.txt")
   run_cmake_command(RerunCMake-rerun ${CMAKE_COMMAND} --build .)
   run_cmake_command(RerunCMake-nowork ${CMAKE_COMMAND} --build .)
 

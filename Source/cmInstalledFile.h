@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmInstalledFile_h
-#define cmInstalledFile_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -24,7 +23,7 @@ public:
   using CompiledGeneratorExpressionPtrType =
     std::unique_ptr<cmCompiledGeneratorExpression>;
 
-  using ExpressionVectorType = std::vector<cmCompiledGeneratorExpression*>;
+  using ExpressionVectorType = std::vector<CompiledGeneratorExpressionPtrType>;
 
   struct Property
   {
@@ -49,10 +48,10 @@ public:
   void RemoveProperty(const std::string& prop);
 
   void SetProperty(cmMakefile const* mf, const std::string& prop,
-                   const char* value);
+                   const std::string& value);
 
   void AppendProperty(cmMakefile const* mf, const std::string& prop,
-                      const char* value, bool asString = false);
+                      const std::string& value, bool asString = false);
 
   bool HasProperty(const std::string& prop) const;
 
@@ -73,8 +72,6 @@ public:
 
 private:
   std::string Name;
-  cmCompiledGeneratorExpression* NameExpression = nullptr;
+  CompiledGeneratorExpressionPtrType NameExpression;
   PropertyMapType Properties;
 };
-
-#endif

@@ -1,9 +1,9 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmCPackWIXPatchParser_h
-#define cmCPackWIXPatchParser_h
+#pragma once
 
 #include <map>
+#include <memory>
 #include <vector>
 
 #include "cmCPackLog.h"
@@ -33,9 +33,14 @@ struct cmWIXPatchElement : cmWIXPatchNode
 {
   virtual Type type();
 
+  cmWIXPatchElement();
+
+  cmWIXPatchElement(const cmWIXPatchElement&) = delete;
+  const cmWIXPatchElement& operator=(const cmWIXPatchElement&) = delete;
+
   ~cmWIXPatchElement();
 
-  using child_list_t = std::vector<cmWIXPatchNode*>;
+  using child_list_t = std::vector<std::unique_ptr<cmWIXPatchNode>>;
   using attributes_t = std::map<std::string, std::string>;
 
   std::string name;
@@ -85,5 +90,3 @@ private:
 
   std::vector<cmWIXPatchElement*> ElementStack;
 };
-
-#endif

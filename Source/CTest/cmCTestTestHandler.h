@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmCTestTestHandler_h
-#define cmCTestTestHandler_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -18,12 +17,12 @@
 
 #include "cmsys/RegularExpression.hxx"
 
+#include "cmCTest.h"
 #include "cmCTestGenericHandler.h"
 #include "cmCTestResourceSpec.h"
 #include "cmDuration.h"
 #include "cmListFileCache.h"
 
-class cmCTest;
 class cmMakefile;
 class cmXMLWriter;
 
@@ -169,6 +168,7 @@ public:
     std::string Path;
     std::string Reason;
     std::string FullCommandLine;
+    std::string Environment;
     cmDuration ExecutionTime;
     std::int64_t ReturnValue;
     int Status;
@@ -197,7 +197,8 @@ public:
                                 std::string filepath, std::string& filename);
 
   // full signature static method to find an executable
-  static std::string FindExecutable(cmCTest* ctest, const char* testCommand,
+  static std::string FindExecutable(cmCTest* ctest,
+                                    const std::string& testCommand,
                                     std::string& resultingConfig,
                                     std::vector<std::string>& extraPaths,
                                     std::vector<std::string>& failed);
@@ -235,7 +236,7 @@ protected:
   void AttachFiles(cmXMLWriter& xml, cmCTestTestResult& result);
 
   //! Clean test output to specified length
-  bool CleanTestOutput(std::string& output, size_t length);
+  void CleanTestOutput(std::string& output, size_t length);
 
   cmDuration ElapsedTestingTime;
 
@@ -278,16 +279,16 @@ private:
   /**
    * Run the tests for a directory and any subdirectories
    */
-  void ProcessDirectory(std::vector<std::string>& passed,
+  bool ProcessDirectory(std::vector<std::string>& passed,
                         std::vector<std::string>& failed);
 
   /**
    * Get the list of tests in directory and subdirectories.
    */
-  void GetListOfTests();
+  bool GetListOfTests();
   // compute the lists of tests that will actually run
   // based on union regex and -I stuff
-  void ComputeTestList();
+  bool ComputeTestList();
 
   // compute the lists of tests that will actually run
   // based on LastTestFailed.log
@@ -308,7 +309,7 @@ private:
   /**
    * Find the executable for a test
    */
-  std::string FindTheExecutable(const char* exe);
+  std::string FindTheExecutable(const std::string& exe);
 
   std::string GetTestStatus(cmCTestTestResult const&);
   void ExpandTestsToRunInformation(size_t numPossibleTests);
@@ -338,6 +339,7 @@ private:
 
   bool UseResourceSpec;
   cmCTestResourceSpec ResourceSpec;
+  std::string ResourceSpecFile;
 
   void GenerateRegressionImages(cmXMLWriter& xml, const std::string& dart);
   cmsys::RegularExpression DartStuff1;
@@ -353,7 +355,7 @@ private:
 
   std::ostream* LogFile;
 
+  cmCTest::Repeat RepeatMode = cmCTest::Repeat::Never;
+  int RepeatCount = 1;
   bool RerunFailed;
 };
-
-#endif

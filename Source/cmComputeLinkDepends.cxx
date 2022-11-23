@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdio>
-#include <cstring>
 #include <iterator>
 #include <sstream>
 #include <utility>
@@ -18,6 +17,7 @@
 #include "cmListFileCache.h"
 #include "cmLocalGenerator.h"
 #include "cmMakefile.h"
+#include "cmProperty.h"
 #include "cmRange.h"
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
@@ -253,13 +253,13 @@ cmComputeLinkDepends::Compute()
   // Compute the final set of link entries.
   // Iterate in reverse order so we can keep only the last occurrence
   // of a shared library.
-  std::set<int> emmitted;
+  std::set<int> emitted;
   for (int i : cmReverseRange(this->FinalLinkOrder)) {
     LinkEntry const& e = this->EntryList[i];
     cmGeneratorTarget const* t = e.Target;
     // Entries that we know the linker will re-use do not need to be repeated.
     bool uniquify = t && t->GetType() == cmStateEnums::SHARED_LIBRARY;
-    if (!uniquify || emmitted.insert(i).second) {
+    if (!uniquify || emitted.insert(i).second) {
       this->FinalLinkEntries.push_back(e);
     }
   }
@@ -315,9 +315,9 @@ int cmComputeLinkDepends::AddLinkEntry(cmLinkItem const& item)
   } else {
     // Look for an old-style <item>_LIB_DEPENDS variable.
     std::string var = cmStrCat(entry.Item.Value, "_LIB_DEPENDS");
-    if (const char* val = this->Makefile->GetDefinition(var)) {
+    if (cmProp val = this->Makefile->GetDefinition(var)) {
       // The item dependencies are known.  Follow them.
-      BFSEntry qe = { index, val };
+      BFSEntry qe = { index, val->c_str() };
       this->BFSQueue.push(qe);
     } else if (!entry.IsFlag) {
       // The item dependencies are not known.  We need to infer them.
@@ -412,7 +412,7 @@ void cmComputeLinkDepends::HandleSharedDependency(SharedDepEntry const& dep)
   // This shared library dependency must follow the item that listed
   // it.
   this->EntryConstraintGraph[dep.DependerIndex].emplace_back(
-    index, true, cmListFileBacktrace());
+    index, true, false, cmListFileBacktrace());
 
   // Target items may have their own dependencies.
   if (entry.Target) {
@@ -454,10 +454,10 @@ void cmComputeLinkDepends::AddVarLinkEntries(int depender_index,
       // lower.
       if (!haveLLT) {
         std::string var = cmStrCat(d, "_LINK_TYPE");
-        if (const char* val = this->Makefile->GetDefinition(var)) {
-          if (strcmp(val, "debug") == 0) {
+        if (cmProp val = this->Makefile->GetDefinition(var)) {
+          if (*val == "debug") {
             llt = DEBUG_LibraryType;
-          } else if (strcmp(val, "optimized") == 0) {
+          } else if (*val == "optimized") {
             llt = OPTIMIZED_LibraryType;
           }
         }
@@ -514,7 +514,7 @@ void cmComputeLinkDepends::AddLinkEntries(int depender_index,
     // The dependee must come after the depender.
     if (depender_index >= 0) {
       this->EntryConstraintGraph[depender_index].emplace_back(
-        dependee_index, false, cmListFileBacktrace());
+        dependee_index, false, false, cmListFileBacktrace());
     } else {
       // This is a direct dependency of the target being linked.
       this->OriginalEntries.push_back(dependee_index);
@@ -587,7 +587,7 @@ void cmComputeLinkDepends::InferDependencies()
     cmGraphEdgeList& edges = this->EntryConstraintGraph[depender_index];
     edges.reserve(edges.size() + common.size());
     for (auto const& c : common) {
-      edges.emplace_back(c, true, cmListFileBacktrace());
+      edges.emplace_back(c, true, false, cmListFileBacktrace());
     }
   }
 }
@@ -626,6 +626,7 @@ void cmComputeLinkDepends::OrderLinkEntires()
   // constraints disallow it.
   this->CCG =
     cm::make_unique<cmComputeComponentGraph>(this->EntryConstraintGraph);
+  this->CCG->Compute();
 
   // The component graph is guaranteed to be acyclic.  Start a DFS
   // from every entry to compute a topological order for the

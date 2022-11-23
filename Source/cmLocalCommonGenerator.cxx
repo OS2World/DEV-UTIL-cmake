@@ -8,6 +8,7 @@
 #include "cmGeneratorTarget.h"
 #include "cmMakefile.h"
 #include "cmOutputConverter.h"
+#include "cmProperty.h"
 #include "cmStringAlgorithms.h"
 
 class cmGlobalGenerator;
@@ -17,14 +18,8 @@ cmLocalCommonGenerator::cmLocalCommonGenerator(cmGlobalGenerator* gg,
   : cmLocalGenerator(gg, mf)
   , WorkingDirectory(std::move(wd))
 {
-  // Store the configuration name that will be generated.
-  if (const char* config = this->Makefile->GetDefinition("CMAKE_BUILD_TYPE")) {
-    // Use the build type given by the user.
-    this->ConfigName = config;
-  } else {
-    // No configuration type given.
-    this->ConfigName.clear();
-  }
+  this->ConfigNames =
+    this->Makefile->GetGeneratorConfigs(cmMakefile::IncludeEmptyConfig);
 }
 
 cmLocalCommonGenerator::~cmLocalCommonGenerator() = default;
@@ -54,18 +49,27 @@ std::string cmLocalCommonGenerator::GetTargetFortranFlags(
       this->Makefile->GetRequiredDefinition("CMAKE_Fortran_MODDIR_FLAG"),
       mod_dir);
     this->AppendFlags(flags, modflag);
+    // Some compilers do not search their own module output directory
+    // for using other modules.  Add an include directory explicitly
+    // for consistency with compilers that do search it.
+    std::string incflag =
+      this->Makefile->GetSafeDefinition("CMAKE_Fortran_MODDIR_INCLUDE_FLAG");
+    if (!incflag.empty()) {
+      incflag = cmStrCat(incflag, mod_dir);
+      this->AppendFlags(flags, incflag);
+    }
   }
 
   // If there is a separate module path flag then duplicate the
   // include path with it.  This compiler does not search the include
   // path for modules.
-  if (const char* modpath_flag =
+  if (cmProp modpath_flag =
         this->Makefile->GetDefinition("CMAKE_Fortran_MODPATH_FLAG")) {
     std::vector<std::string> includes;
     this->GetIncludeDirectories(includes, target, "C", config);
     for (std::string const& id : includes) {
       std::string flg =
-        cmStrCat(modpath_flag,
+        cmStrCat(*modpath_flag,
                  this->ConvertToOutputFormat(id, cmOutputConverter::SHELL));
       this->AppendFlags(flags, flg);
     }

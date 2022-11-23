@@ -7,15 +7,16 @@
 #include <utility>
 
 #include <cm/memory>
+#include <cm/vector>
+#include <cmext/algorithm>
+#include <cmext/string_view>
 
-#include "cm_static_string_view.hxx"
-
-#include "cmAlgorithms.h"
 #include "cmCTest.h"
 #include "cmCTestSubmitHandler.h"
 #include "cmCommand.h"
 #include "cmMakefile.h"
 #include "cmMessageType.h"
+#include "cmProperty.h"
 #include "cmRange.h"
 #include "cmStringAlgorithms.h"
 #include "cmSystemTools.h"
@@ -35,12 +36,12 @@ std::unique_ptr<cmCommand> cmCTestSubmitCommand::Clone()
 
 cmCTestGenericHandler* cmCTestSubmitCommand::InitializeHandler()
 {
-  const char* submitURL = !this->SubmitURL.empty()
-    ? this->SubmitURL.c_str()
+  const std::string* submitURL = !this->SubmitURL.empty()
+    ? &this->SubmitURL
     : this->Makefile->GetDefinition("CTEST_SUBMIT_URL");
 
   if (submitURL) {
-    this->CTest->SetCTestConfiguration("SubmitURL", submitURL, this->Quiet);
+    this->CTest->SetCTestConfiguration("SubmitURL", *submitURL, this->Quiet);
   } else {
     this->CTest->SetCTestConfigurationFromCMakeVariable(
       this->Makefile, "DropMethod", "CTEST_DROP_METHOD", this->Quiet);
@@ -58,17 +59,17 @@ cmCTestGenericHandler* cmCTestSubmitCommand::InitializeHandler()
   this->CTest->SetCTestConfigurationFromCMakeVariable(
     this->Makefile, "CurlOptions", "CTEST_CURL_OPTIONS", this->Quiet);
 
-  const char* notesFilesVariable =
+  cmProp notesFilesVariable =
     this->Makefile->GetDefinition("CTEST_NOTES_FILES");
   if (notesFilesVariable) {
-    std::vector<std::string> notesFiles = cmExpandedList(notesFilesVariable);
+    std::vector<std::string> notesFiles = cmExpandedList(*notesFilesVariable);
     this->CTest->GenerateNotesFile(notesFiles);
   }
 
-  const char* extraFilesVariable =
+  cmProp extraFilesVariable =
     this->Makefile->GetDefinition("CTEST_EXTRA_SUBMIT_FILES");
   if (extraFilesVariable) {
-    std::vector<std::string> extraFiles = cmExpandedList(extraFilesVariable);
+    std::vector<std::string> extraFiles = cmExpandedList(*extraFilesVariable);
     if (!this->CTest->SubmitExtraFiles(extraFiles)) {
       this->SetError("problem submitting extra files.");
       return nullptr;
@@ -108,7 +109,7 @@ cmCTestGenericHandler* cmCTestSubmitCommand::InitializeHandler()
   if (this->PartsMentioned) {
     auto parts =
       cmMakeRange(this->Parts).transform([this](std::string const& arg) {
-        return this->CTest->GetPartFromName(arg.c_str());
+        return this->CTest->GetPartFromName(arg);
       });
     handler->SelectParts(std::set<cmCTest::Part>(parts.begin(), parts.end()));
   }
@@ -171,11 +172,13 @@ void cmCTestSubmitCommand::BindArguments()
 void cmCTestSubmitCommand::CheckArguments(
   std::vector<std::string> const& keywords)
 {
-  this->PartsMentioned = !this->Parts.empty() || cmContains(keywords, "PARTS");
-  this->FilesMentioned = !this->Files.empty() || cmContains(keywords, "FILES");
+  this->PartsMentioned =
+    !this->Parts.empty() || cm::contains(keywords, "PARTS");
+  this->FilesMentioned =
+    !this->Files.empty() || cm::contains(keywords, "FILES");
 
-  cmEraseIf(this->Parts, [this](std::string const& arg) -> bool {
-    cmCTest::Part p = this->CTest->GetPartFromName(arg.c_str());
+  cm::erase_if(this->Parts, [this](std::string const& arg) -> bool {
+    cmCTest::Part p = this->CTest->GetPartFromName(arg);
     if (p == cmCTest::PartCount) {
       std::ostringstream e;
       e << "Part name \"" << arg << "\" is invalid.";
@@ -185,7 +188,7 @@ void cmCTestSubmitCommand::CheckArguments(
     return false;
   });
 
-  cmEraseIf(this->Files, [this](std::string const& arg) -> bool {
+  cm::erase_if(this->Files, [this](std::string const& arg) -> bool {
     if (!cmSystemTools::FileExists(arg)) {
       std::ostringstream e;
       e << "File \"" << arg << "\" does not exist. Cannot submit "

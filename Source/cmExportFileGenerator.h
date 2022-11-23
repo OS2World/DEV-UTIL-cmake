@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmExportFileGenerator_h
-#define cmExportFileGenerator_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -46,7 +45,7 @@ public:
 
   /** Set the full path to the export file to generate.  */
   void SetExportFile(const char* mainFile);
-  const char* GetMainExportFileName() const;
+  const std::string& GetMainExportFileName() const;
 
   /** Set the namespace in which to place exported target names.  */
   void SetNamespace(const std::string& ns) { this->Namespace = ns; }
@@ -223,5 +222,3 @@ private:
   virtual std::string InstallNameDir(cmGeneratorTarget* target,
                                      const std::string& config) = 0;
 };
-
-#endif

@@ -8,6 +8,8 @@
 #include <sstream>
 #include <utility>
 
+#include <cmext/algorithm>
+
 #include "cmExportSet.h"
 #include "cmGeneratorExpression.h"
 #include "cmGeneratorTarget.h"
@@ -286,6 +288,9 @@ void cmExportBuildFileGenerator::GetTargets(
   if (this->ExportSet) {
     for (std::unique_ptr<cmTargetExport> const& te :
          this->ExportSet->GetTargetExports()) {
+      if (te->NamelinkOnly) {
+        continue;
+      }
       targets.push_back(te->TargetName);
     }
     return;
@@ -300,14 +305,13 @@ cmExportBuildFileGenerator::FindBuildExportInfo(cmGlobalGenerator* gg,
   std::vector<std::string> exportFiles;
   std::string ns;
 
-  std::map<std::string, cmExportBuildFileGenerator*>& exportSets =
-    gg->GetBuildExportSets();
+  auto& exportSets = gg->GetBuildExportSets();
 
   for (auto const& exp : exportSets) {
-    const cmExportBuildFileGenerator* exportSet = exp.second;
+    const auto& exportSet = exp.second;
     std::vector<std::string> targets;
     exportSet->GetTargets(targets);
-    if (cmContains(targets, name)) {
+    if (cm::contains(targets, name)) {
       exportFiles.push_back(exp.first);
       ns = exportSet->GetNamespace();
     }

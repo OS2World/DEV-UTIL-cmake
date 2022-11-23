@@ -1,14 +1,14 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef _cmDocumentationSection_h
-#define _cmDocumentationSection_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
 #include <string>
 #include <vector>
 
-#include "cmAlgorithms.h"
+#include <cmext/algorithm>
+
 #include "cmDocumentationEntry.h"
 
 // Low-level interface for custom documents:
@@ -47,7 +47,7 @@ public:
   }
   void Append(const std::vector<cmDocumentationEntry>& entries)
   {
-    cmAppend(this->Entries, entries);
+    cm::append(this->Entries, entries);
   }
 
   /** Append an entry to this section using NULL terminated chars */
@@ -66,5 +66,3 @@ private:
   std::string Name;
   std::vector<cmDocumentationEntry> Entries;
 };
-
-#endif

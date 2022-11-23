@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmQtAutoGenerator_h
-#define cmQtAutoGenerator_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -13,7 +12,7 @@
 
 #include <cm/string_view>
 
-#include "cm_jsoncpp_value.h"
+#include <cm3p/json/value.h>
 
 #include "cmFileTime.h"
 #include "cmQtAutoGen.h"
@@ -177,5 +176,3 @@ private:
   // -- Directories
   ProjectDirsT ProjectDirs_;
 };
-
-#endif

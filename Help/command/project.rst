@@ -88,7 +88,7 @@ The options are:
 
   Selects which programming languages are needed to build the project.
   Supported languages include ``C``, ``CXX`` (i.e.  C++), ``CUDA``,
-  ``OBJC`` (i.e. Objective-C), ``OBJCXX``, ``Fortran``, and ``ASM``.
+  ``OBJC`` (i.e. Objective-C), ``OBJCXX``, ``Fortran``, ``ISPC``, and ``ASM``.
   By default ``C`` and ``CXX`` are enabled if no language options are given.
   Specify language ``NONE``, or use the ``LANGUAGES`` keyword and list no languages,
   to skip enabling any languages.
@@ -102,9 +102,12 @@ options are intended for use as default values in package metadata and documenta
 Code Injection
 ^^^^^^^^^^^^^^
 
-If the :variable:`CMAKE_PROJECT_INCLUDE_BEFORE` variable is set, the file
-pointed to by that variable will be included as the first step of the
+If the :variable:`CMAKE_PROJECT_INCLUDE_BEFORE` or
+:variable:`CMAKE_PROJECT_<PROJECT-NAME>_INCLUDE_BEFORE` variables are set,
+the files they point to will be included as the first step of the
 ``project()`` command.
+If both are set, then :variable:`CMAKE_PROJECT_INCLUDE_BEFORE` will be
+included before :variable:`CMAKE_PROJECT_<PROJECT-NAME>_INCLUDE_BEFORE`.
 
 If the :variable:`CMAKE_PROJECT_INCLUDE` or
 :variable:`CMAKE_PROJECT_<PROJECT-NAME>_INCLUDE` variables are set, the files

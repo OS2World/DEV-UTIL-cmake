@@ -1,12 +1,11 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmXMLWiter_h
-#define cmXMLWiter_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
 #include <chrono>
-#include <cstddef>
+#include <cstddef> // IWYU pragma: keep
 #include <ctime>
 #include <ostream>
 #include <stack>
@@ -196,5 +195,3 @@ public:
 private:
   cmXMLWriter& xmlwr;
 };
-
-#endif

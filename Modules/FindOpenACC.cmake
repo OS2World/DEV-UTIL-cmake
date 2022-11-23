@@ -5,6 +5,8 @@
 FindOpenACC
 -----------
 
+.. versionadded:: 3.10
+
 Detect OpenACC support by the compiler.
 
 This module can be used to detect OpenACC support in a compiler.
@@ -254,6 +256,7 @@ foreach (LANG IN ITEMS C CXX Fortran)
     _OPENACC_SET_VERSION_BY_SPEC_DATE("${LANG}")
 
     find_package_handle_standard_args(OpenACC_${LANG}
+      NAME_MISMATCHED
       REQUIRED_VARS OpenACC_${LANG}_FLAGS
       VERSION_VAR OpenACC_${LANG}_VERSION
     )

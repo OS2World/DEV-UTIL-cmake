@@ -1,7 +1,6 @@
 /* Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
    file Copyright.txt or https://cmake.org/licensing for details.  */
-#ifndef cmGeneratorExpression_h
-#define cmGeneratorExpression_h
+#pragma once
 
 #include "cmConfigure.h" // IWYU pragma: keep
 
@@ -42,17 +41,9 @@ public:
 
   std::unique_ptr<cmCompiledGeneratorExpression> Parse(
     std::string input) const;
-  std::unique_ptr<cmCompiledGeneratorExpression> Parse(
-    const char* input) const;
 
   static std::string Evaluate(
     std::string input, cmLocalGenerator* lg, const std::string& config,
-    cmGeneratorTarget const* headTarget = nullptr,
-    cmGeneratorExpressionDAGChecker* dagChecker = nullptr,
-    cmGeneratorTarget const* currentTarget = nullptr,
-    std::string const& language = std::string());
-  static std::string Evaluate(
-    const char* input, cmLocalGenerator* lg, const std::string& config,
     cmGeneratorTarget const* headTarget = nullptr,
     cmGeneratorExpressionDAGChecker* dagChecker = nullptr,
     cmGeneratorTarget const* currentTarget = nullptr,
@@ -86,6 +77,9 @@ public:
   {
     return input != nullptr && input[0] == '$' && input[1] == '<';
   }
+
+  static void ReplaceInstallPrefix(std::string& input,
+                                   const std::string& replacement);
 
 private:
   cmListFileBacktrace Backtrace;
@@ -134,6 +128,10 @@ public:
   {
     return this->HadHeadSensitiveCondition;
   }
+  bool GetHadLinkLanguageSensitiveCondition() const
+  {
+    return this->HadLinkLanguageSensitiveCondition;
+  }
   std::set<cmGeneratorTarget const*> GetSourceSensitiveTargets() const
   {
     return this->SourceSensitiveTargets;
@@ -160,7 +158,7 @@ private:
   friend class cmGeneratorExpression;
 
   cmListFileBacktrace Backtrace;
-  std::vector<cmGeneratorExpressionEvaluator*> Evaluators;
+  std::vector<std::unique_ptr<cmGeneratorExpressionEvaluator>> Evaluators;
   const std::string Input;
   bool NeedsEvaluation;
   bool EvaluateForBuildsystem;
@@ -175,6 +173,7 @@ private:
   mutable std::string Output;
   mutable bool HadContextSensitiveCondition;
   mutable bool HadHeadSensitiveCondition;
+  mutable bool HadLinkLanguageSensitiveCondition;
   mutable std::set<cmGeneratorTarget const*> SourceSensitiveTargets;
 };
 
@@ -199,8 +198,6 @@ public:
 
   const std::string& Evaluate(std::string expression,
                               const std::string& property);
-  const std::string& Evaluate(const char* expression,
-                              const std::string& property);
 
 protected:
   cmGeneratorExpression GeneratorExpression;
@@ -210,5 +207,3 @@ protected:
   cmGeneratorTarget const* HeadTarget = nullptr;
   std::string Language;
 };
-
-#endif

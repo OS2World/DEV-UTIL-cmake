@@ -1,9 +1,19 @@
 # Distributed under the OSI-approved BSD 3-Clause License.  See accompanying
 # file Copyright.txt or https://cmake.org/licensing for details.
 
+# To ensure maximum portability across various compilers and platforms
+# deactivate any compiler extensions.  Skip this for QNX, where additional
+# work is needed to build without compiler extensions.
+if (NOT CMAKE_SYSTEM_NAME STREQUAL "QNX")
+  set(CMAKE_C_EXTENSIONS FALSE)
+  set(CMAKE_CXX_EXTENSIONS FALSE)
+endif()
+
 include(CheckIncludeFile)
 # Check if we can build support for ELF parsing.
-if(CMAKE_CXX_PLATFORM_ID MATCHES "OpenBSD")
+if(WIN32)
+  set(HAVE_ELF_H 0)
+elseif(CMAKE_CXX_PLATFORM_ID MATCHES "OpenBSD")
   CHECK_INCLUDE_FILES("stdint.h;elf_abi.h" HAVE_ELF_H)
 else()
   CHECK_INCLUDE_FILE("elf.h" HAVE_ELF_H)
@@ -134,6 +144,9 @@ set(SRCS
   LexerParser/cmFortranParser.cxx
   LexerParser/cmFortranParserTokens.h
   LexerParser/cmFortranParser.y
+  LexerParser/cmGccDepfileLexer.cxx
+  LexerParser/cmGccDepfileLexer.h
+  LexerParser/cmGccDepfileLexer.in.l
   LexerParser/cmListFileLexer.c
   LexerParser/cmListFileLexer.in.l
 
@@ -172,6 +185,10 @@ set(SRCS
   cmCheckCustomOutputs.cxx
   cmCLocaleEnvironmentScope.h
   cmCLocaleEnvironmentScope.cxx
+  cmCMakePath.h
+  cmCMakePath.cxx
+  cmCMakePresetsFile.cxx
+  cmCMakePresetsFile.h
   cmCommandArgumentParserHelper.cxx
   cmCommonTargetGenerator.cxx
   cmCommonTargetGenerator.h
@@ -183,6 +200,8 @@ set(SRCS
   cmComputeLinkInformation.h
   cmComputeTargetDepends.h
   cmComputeTargetDepends.cxx
+  cmConsoleBuf.h
+  cmConsoleBuf.cxx
   cmCPackPropertiesGenerator.h
   cmCPackPropertiesGenerator.cxx
   cmCryptoHash.cxx
@@ -270,6 +289,10 @@ set(SRCS
   cmFortranParserImpl.cxx
   cmFSPermissions.cxx
   cmFSPermissions.h
+  cmGccDepfileLexerHelper.cxx
+  cmGccDepfileLexerHelper.h
+  cmGccDepfileReader.cxx
+  cmGccDepfileReader.h
   cmGeneratedFileStream.cxx
   cmGeneratorExpressionContext.cxx
   cmGeneratorExpressionContext.h
@@ -289,6 +312,8 @@ set(SRCS
   cmGeneratorExpression.h
   cmGeneratorTarget.cxx
   cmGeneratorTarget.h
+  cmLinkItemGraphVisitor.cxx
+  cmLinkItemGraphVisitor.h
   cmGetPipes.cxx
   cmGetPipes.h
   cmGlobalCommonGenerator.cxx
@@ -318,6 +343,7 @@ set(SRCS
   cmInstallTargetGenerator.cxx
   cmInstallDirectoryGenerator.h
   cmInstallDirectoryGenerator.cxx
+  cmJSONHelpers.h
   cmLDConfigLDConfigTool.cxx
   cmLDConfigLDConfigTool.h
   cmLDConfigTool.cxx
@@ -345,6 +371,7 @@ set(SRCS
   cmMakefileTargetGenerator.cxx
   cmMakefileExecutableTargetGenerator.cxx
   cmMakefileLibraryTargetGenerator.cxx
+  cmMakefileProfilingData.cxx
   cmMakefileUtilityTargetGenerator.cxx
   cmMessageType.h
   cmMessenger.cxx
@@ -368,8 +395,6 @@ set(SRCS
   cmProperty.h
   cmPropertyDefinition.cxx
   cmPropertyDefinition.h
-  cmPropertyDefinitionMap.cxx
-  cmPropertyDefinitionMap.h
   cmPropertyMap.cxx
   cmPropertyMap.h
   cmQtAutoGen.cxx
@@ -397,6 +422,8 @@ set(SRCS
   cmSourceFileLocationKind.h
   cmSourceGroup.cxx
   cmSourceGroup.h
+  cmStandardLevelResolver.cxx
+  cmStandardLevelResolver.h
   cmState.cxx
   cmState.h
   cmStateDirectory.cxx
@@ -477,6 +504,8 @@ set(SRCS
   cmBuildNameCommand.h
   cmCMakeHostSystemInformationCommand.cxx
   cmCMakeHostSystemInformationCommand.h
+  cmCMakeLanguageCommand.cxx
+  cmCMakeLanguageCommand.h
   cmCMakeMinimumRequired.cxx
   cmCMakeMinimumRequired.h
   cmCMakePolicyCommand.cxx
@@ -681,7 +710,6 @@ set(SRCS
   cmWriteFileCommand.cxx
   cmWriteFileCommand.h
 
-  cm_static_string_view.hxx
   cm_get_date.h
   cm_get_date.c
   cm_utf8.h
@@ -691,6 +719,8 @@ set(SRCS
 
   cmDuration.h
   cmDuration.cxx
+
+  bindexplib.cxx
   )
 
 SET_PROPERTY(SOURCE cmProcessOutput.cxx APPEND PROPERTY COMPILE_DEFINITIONS
@@ -713,7 +743,6 @@ if (WIN32)
   set(SRCS ${SRCS}
     cmCallVisualStudioMacro.cxx
     cmCallVisualStudioMacro.h
-    bindexplib.cxx
     )
 
   if(NOT UNIX)
@@ -922,6 +951,7 @@ set(CTEST_SRCS cmCTest.cxx
   CTest/cmCTestResourceAllocator.cxx
   CTest/cmCTestResourceSpec.cxx
   CTest/cmCTestLaunch.cxx
+  CTest/cmCTestLaunchReporter.cxx
   CTest/cmCTestMemCheckCommand.cxx
   CTest/cmCTestMemCheckHandler.cxx
   CTest/cmCTestMultiProcessHandler.cxx
@@ -1220,6 +1250,11 @@ if(WIN32)
   foreach(_tool ${_tools})
     target_sources(${_tool} PRIVATE $<TARGET_OBJECTS:CMakeVersion>)
   endforeach()
+endif()
+
+if(CMake_JOB_POOL_LINK_BIN)
+  set_property(TARGET ${_tools} PROPERTY JOB_POOL_LINK "link-bin")
+  set_property(GLOBAL APPEND PROPERTY JOB_POOLS "link-bin=${CMake_JOB_POOL_LINK_BIN}")
 endif()
 
 # Install tools

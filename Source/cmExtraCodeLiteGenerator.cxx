@@ -4,6 +4,7 @@
 
 #include <cstring>
 #include <map>
+#include <memory>
 #include <set>
 #include <sstream>
 #include <utility>
@@ -116,10 +117,9 @@ std::vector<std::string> cmExtraCodeLiteGenerator::CreateProjectsByTarget(
 {
   std::vector<std::string> retval;
   // for each target in the workspace create a codelite project
-  const std::vector<cmLocalGenerator*>& lgs =
-    this->GlobalGenerator->GetLocalGenerators();
-  for (cmLocalGenerator* lg : lgs) {
-    for (cmGeneratorTarget* lt : lg->GetGeneratorTargets()) {
+  const auto& lgs = this->GlobalGenerator->GetLocalGenerators();
+  for (const auto& lg : lgs) {
+    for (const auto& lt : lg->GetGeneratorTargets()) {
       cmStateEnums::TargetType type = lt->GetType();
       std::string const& outputDir = lg->GetCurrentBinaryDirectory();
       std::string targetName = lt->GetName();
@@ -142,7 +142,7 @@ std::vector<std::string> cmExtraCodeLiteGenerator::CreateProjectsByTarget(
           xml->Attribute("Active", "No");
           xml->EndElement();
 
-          CreateNewProjectFile(lt, filename);
+          CreateNewProjectFile(lt.get(), filename);
           break;
         default:
           break;
@@ -204,9 +204,7 @@ std::string cmExtraCodeLiteGenerator::CollectSourceFiles(
     case cmStateEnums::STATIC_LIBRARY: {
       projectType = "Static Library";
     } break;
-    case cmStateEnums::SHARED_LIBRARY: {
-      projectType = "Dynamic Library";
-    } break;
+    case cmStateEnums::SHARED_LIBRARY:
     case cmStateEnums::MODULE_LIBRARY: {
       projectType = "Dynamic Library";
     } break;
@@ -229,8 +227,7 @@ std::string cmExtraCodeLiteGenerator::CollectSourceFiles(
           cmSystemTools::LowerCase(s->GetExtension());
         // check whether it is a source or a include file
         // then put it accordingly into one of the two containers
-        if (cm->IsSourceExtension(extLower) || cm->IsCudaExtension(extLower) ||
-            cm->IsFortranExtension(extLower)) {
+        if (cm->IsAKnownSourceExtension(extLower)) {
           cFiles[fullPath] = s;
         } else {
           otherFiles.insert(fullPath);
@@ -269,9 +266,9 @@ void cmExtraCodeLiteGenerator::CreateNewProjectFile(
 
   for (cmLocalGenerator* lg : lgs) {
     cmMakefile* makefile = lg->GetMakefile();
-    const std::vector<cmGeneratorTarget*>& targets = lg->GetGeneratorTargets();
-    for (cmGeneratorTarget* target : targets) {
-      projectType = CollectSourceFiles(makefile, target, cFiles, otherFiles);
+    for (const auto& target : lg->GetGeneratorTargets()) {
+      projectType =
+        CollectSourceFiles(makefile, target.get(), cFiles, otherFiles);
     }
   }
 
@@ -634,7 +631,10 @@ std::string cmExtraCodeLiteGenerator::GetBuildCommand(
   if (generator == "NMake Makefiles" || generator == "Ninja") {
     ss << make;
   } else if (generator == "MinGW Makefiles" || generator == "Unix Makefiles") {
-    ss << make << " -f$(ProjectPath)/Makefile -j " << this->CpuCount;
+    ss << make << " -f$(ProjectPath)/Makefile";
+    if (this->CpuCount > 0) {
+      ss << " -j " << this->CpuCount;
+    }
   }
   if (!targetName.empty()) {
     ss << " " << targetName;

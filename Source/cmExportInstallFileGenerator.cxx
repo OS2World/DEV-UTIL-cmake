@@ -42,6 +42,9 @@ bool cmExportInstallFileGenerator::GenerateMainFile(std::ostream& os)
     std::string sep;
     for (std::unique_ptr<cmTargetExport> const& te :
          this->IEGen->GetExportSet()->GetTargetExports()) {
+      if (te->NamelinkOnly) {
+        continue;
+      }
       expectedTargets += sep + this->Namespace + te->Target->GetExportName();
       sep = " ";
       if (this->ExportedTargets.insert(te->Target).second) {
@@ -258,15 +261,7 @@ void cmExportInstallFileGenerator::LoadConfigFiles(std::ostream& os)
 
 void cmExportInstallFileGenerator::ReplaceInstallPrefix(std::string& input)
 {
-  std::string::size_type pos = 0;
-  std::string::size_type lastPos = pos;
-
-  while ((pos = input.find("$<INSTALL_PREFIX>", lastPos)) !=
-         std::string::npos) {
-    std::string::size_type endPos = pos + sizeof("$<INSTALL_PREFIX>") - 1;
-    input.replace(pos, endPos - pos, "${_IMPORT_PREFIX}");
-    lastPos = endPos;
-  }
+  cmGeneratorExpression::ReplaceInstallPrefix(input, "${_IMPORT_PREFIX}");
 }
 
 bool cmExportInstallFileGenerator::GenerateImportFileConfig(
@@ -525,13 +520,14 @@ void cmExportInstallFileGenerator::ComplainAboutMissingTarget(
 }
 
 std::string cmExportInstallFileGenerator::InstallNameDir(
-  cmGeneratorTarget* target, const std::string& /*config*/)
+  cmGeneratorTarget* target, const std::string& config)
 {
   std::string install_name_dir;
 
   cmMakefile* mf = target->Target->GetMakefile();
   if (mf->IsOn("CMAKE_PLATFORM_HAS_INSTALLNAME")) {
-    install_name_dir = target->GetInstallNameDirForInstallTree();
+    install_name_dir =
+      target->GetInstallNameDirForInstallTree(config, "${_IMPORT_PREFIX}");
   }
 
   return install_name_dir;

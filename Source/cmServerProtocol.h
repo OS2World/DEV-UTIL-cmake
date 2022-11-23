@@ -8,7 +8,7 @@
 #include <string>
 #include <utility>
 
-#include "cm_jsoncpp_value.h"
+#include <cm3p/json/value.h>
 
 #include "cmake.h"
 
@@ -94,6 +94,7 @@ protected:
   // Implement protocol specific activation tasks here. Called from Activate().
   virtual bool DoActivate(const cmServerRequest& request,
                           std::string* errorMessage);
+  bool m_WarnUnused = false; // storage for legacy option
 
 private:
   std::unique_ptr<cmake> m_CMakeInstance;

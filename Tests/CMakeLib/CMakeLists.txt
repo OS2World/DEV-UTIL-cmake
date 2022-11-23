@@ -11,7 +11,9 @@ set(CMakeLib_TESTS
   testCTestResourceAllocator.cxx
   testCTestResourceSpec.cxx
   testCTestResourceGroups.cxx
+  testGccDepfileReader.cxx
   testGeneratedFileStream.cxx
+  testJSONHelpers.cxx
   testRST.cxx
   testRange.cxx
   testOptional.cxx
@@ -25,7 +27,12 @@ set(CMakeLib_TESTS
   testUVProcessChain.cxx
   testUVRAII.cxx
   testUVStreambuf.cxx
+  testCMExtMemory.cxx
+  testCMExtAlgorithm.cxx
   )
+if (CMake_TEST_FILESYSTEM_PATH OR NOT CMake_HAVE_CXX_FILESYSTEM)
+  list(APPEND CMakeLib_TESTS testCMFilesystemPath.cxx)
+endif()
 
 add_executable(testUVProcessChainHelper testUVProcessChainHelper.cxx)
 
@@ -33,6 +40,7 @@ set(testRST_ARGS ${CMAKE_CURRENT_SOURCE_DIR})
 set(testUVProcessChain_ARGS $<TARGET_FILE:testUVProcessChainHelper>)
 set(testUVStreambuf_ARGS $<TARGET_FILE:cmake>)
 set(testCTestResourceSpec_ARGS ${CMAKE_CURRENT_SOURCE_DIR})
+set(testGccDepfileReader_ARGS ${CMAKE_CURRENT_SOURCE_DIR})
 
 if(WIN32)
   list(APPEND CMakeLib_TESTS

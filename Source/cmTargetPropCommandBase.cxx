@@ -5,6 +5,7 @@
 #include "cmExecutionStatus.h"
 #include "cmGlobalGenerator.h"
 #include "cmMakefile.h"
+#include "cmProperty.h"
 #include "cmStateTypes.h"
 #include "cmTarget.h"
 #include "cmake.h"
@@ -84,9 +85,7 @@ bool cmTargetPropCommandBase::HandleArguments(
     }
     ++argIndex;
 
-    this->Target->SetProperty("PRECOMPILE_HEADERS_REUSE_FROM",
-                              args[argIndex].c_str());
-
+    this->Target->SetProperty("PRECOMPILE_HEADERS_REUSE_FROM", args[argIndex]);
     ++argIndex;
   }
 
@@ -124,7 +123,7 @@ bool cmTargetPropCommandBase::ProcessContentArgs(
   }
   if (!content.empty()) {
     if (this->Target->GetType() == cmStateEnums::INTERFACE_LIBRARY &&
-        scope != "INTERFACE") {
+        scope != "INTERFACE" && this->Property != "SOURCES") {
       this->SetError("may only set INTERFACE properties on INTERFACE targets");
       return false;
     }
@@ -159,12 +158,11 @@ void cmTargetPropCommandBase::HandleInterfaceContent(
 {
   if (prepend) {
     const std::string propName = std::string("INTERFACE_") + this->Property;
-    const char* propValue = tgt->GetProperty(propName);
-    const std::string totalContent = this->Join(content) +
-      (propValue ? std::string(";") + propValue : std::string());
-    tgt->SetProperty(propName, totalContent.c_str());
+    cmProp propValue = tgt->GetProperty(propName);
+    const std::string totalContent =
+      this->Join(content) + (propValue ? (";" + *propValue) : std::string());
+    tgt->SetProperty(propName, totalContent);
   } else {
-    tgt->AppendProperty("INTERFACE_" + this->Property,
-                        this->Join(content).c_str());
+    tgt->AppendProperty("INTERFACE_" + this->Property, this->Join(content));
   }
 }

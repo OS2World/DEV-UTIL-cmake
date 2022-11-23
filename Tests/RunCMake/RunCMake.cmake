@@ -139,6 +139,12 @@ function(run_cmake test)
   if(NOT "${actual_result}" MATCHES "${expect_result}")
     string(APPEND msg "Result is [${actual_result}], not [${expect_result}].\n")
   endif()
+
+  # Special case: remove ninja no-op line from stderr, but not stdout.
+  # Test cases that look for it should use RunCMake_TEST_OUTPUT_MERGE.
+  string(REGEX REPLACE "(^|\r?\n)ninja: no work to do\\.\r?\n" "\\1" actual_stderr "${actual_stderr}")
+
+  # Remove incidental content from both stdout and stderr.
   string(CONCAT ignore_line_regex
     "(^|\n)((==[0-9]+=="
     "|BullseyeCoverage"
@@ -146,8 +152,17 @@ function(run_cmake test)
     "|clang[^:]*: warning: the object size sanitizer has no effect at -O0, but is explicitly enabled:"
     "|Error kstat returned"
     "|Hit xcodebuild bug"
+
+    "|LICENSE WARNING:"
+    "|Your license to use PGI[^\n]*expired"
+    "|Please obtain a new version at"
+    "|contact PGI Sales at"
+
+    "|[^\n]*install_name_tool: warning: changes being made to the file will invalidate the code signature in:"
     "|[^\n]*xcodebuild[^\n]*warning: file type[^\n]*is based on missing file type"
+    "|[^\n]*objc[^\n]*: Class AMSupportURL[^\n]* One of the two will be used. Which one is undefined."
     "|[^\n]*is a member of multiple groups"
+    "|[^\n]*offset in archive not a multiple of 8"
     "|[^\n]*from Time Machine by path"
     "|[^\n]*Bullseye Testing Technology"
     ")[^\n]*\n)+"
@@ -199,9 +214,37 @@ function(run_cmake_command test)
   run_cmake(${test})
 endfunction()
 
+function(run_cmake_script test)
+  set(RunCMake_TEST_COMMAND ${CMAKE_COMMAND} ${ARGN} -P ${RunCMake_SOURCE_DIR}/${test}.cmake)
+  run_cmake(${test})
+endfunction()
+
 function(run_cmake_with_options test)
   set(RunCMake_TEST_OPTIONS "${ARGN}")
   run_cmake(${test})
+endfunction()
+
+function(ensure_files_match expected_file actual_file)
+  if(NOT EXISTS "${expected_file}")
+    message(FATAL_ERROR "Expected file does not exist:\n  ${expected_file}")
+  endif()
+  if(NOT EXISTS "${actual_file}")
+    message(FATAL_ERROR "Actual file does not exist:\n  ${actual_file}")
+  endif()
+  file(READ "${expected_file}" expected_file_content)
+  file(READ "${actual_file}" actual_file_content)
+  if(NOT "${expected_file_content}" STREQUAL "${actual_file_content}")
+    message(FATAL_ERROR "Actual file content does not match expected:\n
+    \n
+      expected file: ${expected_file}\n
+      expected content:\n
+      ${expected_file_content}\n
+    \n
+      actual file: ${actual_file}\n
+      actual content:\n
+      ${actual_file_content}\n
+    ")
+  endif()
 endfunction()
 
 # Protect RunCMake tests from calling environment.

@@ -12,6 +12,8 @@
 
 #include "cmGlobalGenerator.h"
 #include "cmMakefile.h"
+#include "cmMessageType.h"
+#include "cmProperty.h"
 #include "cmState.h"
 #include "cmStateTypes.h"
 #include "cmStringAlgorithms.h"
@@ -29,6 +31,7 @@ cmFindLibraryCommand::cmFindLibraryCommand(cmExecutionStatus& status)
 // cmFindLibraryCommand
 bool cmFindLibraryCommand::InitialPass(std::vector<std::string> const& argsIn)
 {
+  this->DebugMode = ComputeIfDebugModeWanted();
   this->VariableDocumentation = "Path to a library.";
   this->CMakePathName = "LIBRARY";
   if (!this->ParseArguments(argsIn)) {
@@ -48,9 +51,9 @@ bool cmFindLibraryCommand::InitialPass(std::vector<std::string> const& argsIn)
 
   // add custom lib<qual> paths instead of using fixed lib32, lib64 or
   // libx32
-  if (const char* customLib = this->Makefile->GetDefinition(
+  if (cmProp customLib = this->Makefile->GetDefinition(
         "CMAKE_FIND_LIBRARY_CUSTOM_LIB_SUFFIX")) {
-    this->AddArchitecturePaths(customLib);
+    this->AddArchitecturePaths(customLib->c_str());
   }
   // add special 32 bit paths if this is a 32 bit compile.
   else if (this->Makefile->PlatformIs32Bit() &&
@@ -74,15 +77,22 @@ bool cmFindLibraryCommand::InitialPass(std::vector<std::string> const& argsIn)
   std::string const library = this->FindLibrary();
   if (!library.empty()) {
     // Save the value in the cache
-    this->Makefile->AddCacheDefinition(this->VariableName, library.c_str(),
+    this->Makefile->AddCacheDefinition(this->VariableName, library,
                                        this->VariableDocumentation.c_str(),
                                        cmStateEnums::FILEPATH);
     return true;
   }
   std::string notfound = this->VariableName + "-NOTFOUND";
-  this->Makefile->AddCacheDefinition(this->VariableName, notfound.c_str(),
+  this->Makefile->AddCacheDefinition(this->VariableName, notfound,
                                      this->VariableDocumentation.c_str(),
                                      cmStateEnums::FILEPATH);
+  if (this->Required) {
+    this->Makefile->IssueMessage(
+      MessageType::FATAL_ERROR,
+      "Could not find " + this->VariableName +
+        " using the following names: " + cmJoin(this->Names, ", "));
+    cmSystemTools::SetFatalErrorOccured();
+  }
   return true;
 }
 
@@ -92,6 +102,13 @@ void cmFindLibraryCommand::AddArchitecturePaths(const char* suffix)
   original.swap(this->SearchPaths);
   for (std::string const& o : original) {
     this->AddArchitecturePath(o, 0, suffix);
+    if (this->DebugMode) {
+      std::string msg = cmStrCat(
+        "find_library(", this->VariableName, ") removed original suffix ", o,
+        " from PATH_SUFFIXES while adding architecture paths for suffix '",
+        suffix, "'");
+      this->DebugMessage(msg);
+    }
   }
 }
 
@@ -153,11 +170,23 @@ void cmFindLibraryCommand::AddArchitecturePath(
 
     if (use_dirX) {
       dirX += "/";
+      if (this->DebugMode) {
+        std::string msg = cmStrCat(
+          "find_library(", this->VariableName, ") added replacement path ",
+          dirX, " to PATH_SUFFIXES for architecture suffix '", suffix, "'");
+        this->DebugMessage(msg);
+      }
       this->SearchPaths.push_back(std::move(dirX));
     }
 
     if (use_dir) {
       this->SearchPaths.push_back(dir);
+      if (this->DebugMode) {
+        std::string msg = cmStrCat(
+          "find_library(", this->VariableName, ") added replacement path ",
+          dir, " to PATH_SUFFIXES for architecture suffix '", suffix, "'");
+        this->DebugMessage(msg);
+      }
     }
   }
 }
@@ -179,7 +208,7 @@ std::string cmFindLibraryCommand::FindLibrary()
 
 struct cmFindLibraryHelper
 {
-  cmFindLibraryHelper(cmMakefile* mf);
+  cmFindLibraryHelper(cmMakefile* mf, cmFindBase const* findBase);
 
   // Context information.
   cmMakefile* Makefile;
@@ -197,6 +226,8 @@ struct cmFindLibraryHelper
 
   // Support for OpenBSD shared library naming: lib<name>.so.<major>.<minor>
   bool OpenBSD;
+
+  bool DebugMode;
 
   // Current names under consideration.
   struct Name
@@ -227,10 +258,33 @@ struct cmFindLibraryHelper
   void SetName(std::string const& name);
   bool CheckDirectory(std::string const& path);
   bool CheckDirectoryForName(std::string const& path, Name& name);
+
+  cmFindBaseDebugState DebugSearches;
+
+  void DebugLibraryFailed(std::string const& name, std::string const& path)
+  {
+    if (this->DebugMode) {
+      auto regexName =
+        cmStrCat(this->PrefixRegexStr, name, this->SuffixRegexStr);
+      this->DebugSearches.FailedAt(path, regexName);
+    }
+  };
+
+  void DebugLibraryFound(std::string const& name, std::string const& path)
+  {
+    if (this->DebugMode) {
+      auto regexName =
+        cmStrCat(this->PrefixRegexStr, name, this->SuffixRegexStr);
+      this->DebugSearches.FoundAt(path, regexName);
+    }
+  };
 };
 
-cmFindLibraryHelper::cmFindLibraryHelper(cmMakefile* mf)
+cmFindLibraryHelper::cmFindLibraryHelper(cmMakefile* mf,
+                                         cmFindBase const* base)
   : Makefile(mf)
+  , DebugMode(base->DebugModeEnabled())
+  , DebugSearches("find_library", base)
 {
   this->GG = this->Makefile->GetGlobalGenerator();
 
@@ -350,7 +404,12 @@ bool cmFindLibraryHelper::CheckDirectoryForName(std::string const& path,
   // library or an import library).
   if (name.TryRaw) {
     this->TestPath = cmStrCat(path, name.Raw);
-    if (cmSystemTools::FileExists(this->TestPath, true)) {
+
+    const bool exists = cmSystemTools::FileExists(this->TestPath, true);
+    if (!exists) {
+      this->DebugLibraryFailed(name.Raw, path);
+    } else {
+      this->DebugLibraryFound(name.Raw, path);
       this->BestPath = cmSystemTools::CollapseFullPath(this->TestPath);
       cmSystemTools::ConvertToUnixSlashes(this->BestPath);
       return true;
@@ -375,7 +434,10 @@ bool cmFindLibraryHelper::CheckDirectoryForName(std::string const& path,
 #endif
     if (name.Regex.find(testName)) {
       this->TestPath = cmStrCat(path, origName);
-      if (!cmSystemTools::FileIsDirectory(this->TestPath)) {
+      // Make sure the path is readable and is not a directory.
+      if (cmSystemTools::FileExists(this->TestPath, true)) {
+        this->DebugLibraryFound(name.Raw, dir);
+
         // This is a matching file.  Check if it is better than the
         // best name found so far.  Earlier prefixes are preferred,
         // followed by earlier suffixes.  For OpenBSD, shared library
@@ -402,6 +464,12 @@ bool cmFindLibraryHelper::CheckDirectoryForName(std::string const& path,
     }
   }
 
+  if (this->BestPath.empty()) {
+    this->DebugLibraryFailed(name.Raw, dir);
+  } else {
+    this->DebugLibraryFound(name.Raw, this->BestPath);
+  }
+
   // Use the best candidate found in this directory, if any.
   return !this->BestPath.empty();
 }
@@ -417,7 +485,7 @@ std::string cmFindLibraryCommand::FindNormalLibrary()
 std::string cmFindLibraryCommand::FindNormalLibraryNamesPerDir()
 {
   // Search for all names in each directory.
-  cmFindLibraryHelper helper(this->Makefile);
+  cmFindLibraryHelper helper(this->Makefile, this);
   for (std::string const& n : this->Names) {
     helper.AddName(n);
   }
@@ -434,7 +502,7 @@ std::string cmFindLibraryCommand::FindNormalLibraryNamesPerDir()
 std::string cmFindLibraryCommand::FindNormalLibraryDirsPerName()
 {
   // Search the entire path for each name.
-  cmFindLibraryHelper helper(this->Makefile);
+  cmFindLibraryHelper helper(this->Makefile, this);
   for (std::string const& n : this->Names) {
     // Switch to searching for this name.
     helper.SetName(n);

@@ -61,7 +61,7 @@ is the name of a CMake variable to contain the results.
 exclude "system" prerequisites.  If <recurse> is set to 1 all
 prerequisites will be found recursively, if set to 0 only direct
 prerequisites are listed.  <exepath> is the path to the top level
-executable used for @executable_path replacment on the Mac.  <dirs> is
+executable used for @executable_path replacement on the Mac.  <dirs> is
 a list of paths where libraries might be found: these paths are
 searched first when a target without any path info is given.  Then
 standard system locations are also searched: PATH, Framework
@@ -735,7 +735,7 @@ function(get_prerequisites target prerequisites_var exclude_system recurse exepa
     set(gp_regex_cmp_count 1)
   elseif(gp_tool MATCHES "otool$")
     set(gp_cmd_args "-L")
-    set(gp_regex "^\t([^\t]+) \\(compatibility version ([0-9]+.[0-9]+.[0-9]+), current version ([0-9]+.[0-9]+.[0-9]+)\\)${eol_char}$")
+    set(gp_regex "^\t([^\t]+) \\(compatibility version ([0-9]+.[0-9]+.[0-9]+), current version ([0-9]+.[0-9]+.[0-9]+)(, weak)?\\)${eol_char}$")
     set(gp_regex_error "")
     set(gp_regex_fallback "")
     set(gp_regex_cmp_count 3)

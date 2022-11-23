@@ -187,7 +187,7 @@ try_compile(SHOULD_FAIL_DUE_TO_BAD_SOURCE
 if(SHOULD_FAIL_DUE_TO_BAD_SOURCE AND NOT CMAKE_GENERATOR MATCHES "Watcom WMake|NMake Makefiles")
   string(REPLACE "\n" "\n  " output "  ${output}")
   message(SEND_ERROR "try_compile with bad#source.c did not fail:\n${output}")
-elseif(NOT output MATCHES [[(bad#source\.c|bad\\)]])
+elseif(NOT output MATCHES [[(bad#source\.c|bad\.c|bad')]])
   string(REPLACE "\n" "\n  " output "  ${output}")
   message(SEND_ERROR "try_compile with bad#source.c failed without mentioning bad source:\n${output}")
 else()
@@ -283,11 +283,15 @@ TEST_ASSERT(C_RUN_SHOULD_WORK "CHECK_C_SOURCE_RUNS() failed")
 
 CHECK_CXX_SOURCE_COMPILES("I don't build" CXX_BUILD_SHOULD_FAIL)
 CHECK_CXX_SOURCE_COMPILES("int main() {return 0;}" CXX_BUILD_SHOULD_WORK)
+CHECK_CXX_SOURCE_COMPILES("void l(char const (&x)[2]){}; int main() { l(\"\\\\n\"); return 0;}"
+  CXX_BUILD_SHOULD_WORK_COMPLEX)
+
 CHECK_CXX_SOURCE_RUNS("int main() {return 2;}" CXX_RUN_SHOULD_FAIL)
 CHECK_CXX_SOURCE_RUNS("int main() {return 0;}" CXX_RUN_SHOULD_WORK)
 
 TEST_FAIL(CXX_BUILD_SHOULD_FAIL "CHECK_CXX_SOURCE_COMPILES() succeeded, but should have failed")
 TEST_ASSERT(CXX_BUILD_SHOULD_WORK "CHECK_CXX_SOURCE_COMPILES() failed")
+TEST_ASSERT(CXX_BUILD_SHOULD_WORK_COMPLEX "CHECK_CXX_SOURCE_COMPILES() failed")
 TEST_FAIL(CXX_RUN_SHOULD_FAIL "CHECK_CXX_SOURCE_RUNS() succeeded, but should have failed")
 TEST_ASSERT(CXX_RUN_SHOULD_WORK "CHECK_CXX_SOURCE_RUNS() failed")
 

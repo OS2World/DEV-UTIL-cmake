@@ -15,18 +15,29 @@
 
 #include <cm/iterator>
 #include <cm/memory>
+#include <cm/optional>
+#include <cm/type_traits> // IWYU pragma: keep
+#include <cm/vector>
+#include <cmext/algorithm>
+#include <cmext/string_view>
+
+#ifndef CMAKE_BOOTSTRAP
+#  include <cm3p/json/value.h>
+#  include <cm3p/json/writer.h>
+#endif
 
 #include "cmsys/FStream.hxx"
 #include "cmsys/RegularExpression.hxx"
 
 #include "cm_sys_stat.h"
 
-#include "cmAlgorithms.h"
 #include "cmCommandArgumentParserHelper.h"
 #include "cmCustomCommand.h"
 #include "cmCustomCommandLines.h"
 #include "cmExecutionStatus.h"
 #include "cmExpandedCommandArgument.h" // IWYU pragma: keep
+#include "cmExportBuildFileGenerator.h"
+#include "cmFSPermissions.h"
 #include "cmFileLockPool.h"
 #include "cmFunctionBlocker.h"
 #include "cmGeneratedFileStream.h"
@@ -36,6 +47,7 @@
 #include "cmInstallGenerator.h" // IWYU pragma: keep
 #include "cmInstallSubdirectoryGenerator.h"
 #include "cmListFileCache.h"
+#include "cmLocalGenerator.h"
 #include "cmMessageType.h"
 #include "cmRange.h"
 #include "cmSourceFile.h"
@@ -54,10 +66,13 @@
 #include "cmake.h"
 
 #ifndef CMAKE_BOOTSTRAP
+#  include "cmMakefileProfilingData.h"
 #  include "cmVariableWatch.h"
 #endif
 
 class cmMessenger;
+
+using namespace cmFSPermissions;
 
 cmDirectoryId::cmDirectoryId(std::string s)
   : String(std::move(s))
@@ -73,7 +88,6 @@ cmMakefile::cmMakefile(cmGlobalGenerator* globalGenerator,
 {
   this->IsSourceFileTryCompile = false;
 
-  this->WarnUnused = this->GetCMakeInstance()->GetWarnUnused();
   this->CheckSystemVars = this->GetCMakeInstance()->GetCheckSystemVars();
 
   this->SuppressSideEffects = false;
@@ -117,15 +131,7 @@ cmMakefile::cmMakefile(cmGlobalGenerator* globalGenerator,
 #endif
 }
 
-cmMakefile::~cmMakefile()
-{
-  cmDeleteAll(this->InstallGenerators);
-  cmDeleteAll(this->TestGenerators);
-  cmDeleteAll(this->SourceFiles);
-  cmDeleteAll(this->Tests);
-  cmDeleteAll(this->ImportedTargetsOwned);
-  cmDeleteAll(this->EvaluationFiles);
-}
+cmMakefile::~cmMakefile() = default;
 
 cmDirectoryId cmMakefile::GetDirectoryId() const
 {
@@ -133,7 +139,7 @@ cmDirectoryId cmMakefile::GetDirectoryId() const
   // If we ever need to expose this to CMake language code we should
   // add a read-only property in cmMakefile::GetProperty.
   char buf[32];
-  sprintf(buf, "<%p>",
+  sprintf(buf, "(%p)",
           static_cast<void const*>(this)); // cast avoids format warning
   return std::string(buf);
 }
@@ -146,7 +152,7 @@ void cmMakefile::IssueMessage(MessageType t, std::string const& text) const
       this->ExecutionStatusStack.back()->SetNestedError();
     }
   }
-  this->GetCMakeInstance()->IssueMessage(t, text, this->GetBacktrace());
+  this->GetCMakeInstance()->IssueMessage(t, text, this->Backtrace);
 }
 
 bool cmMakefile::CheckCMP0037(std::string const& targetName,
@@ -189,18 +195,18 @@ void cmMakefile::MaybeWarnCMP0074(std::string const& pkg)
 {
   // Warn if a <pkg>_ROOT variable we may use is set.
   std::string const varName = pkg + "_ROOT";
-  const char* var = this->GetDefinition(varName);
+  cmProp var = this->GetDefinition(varName);
   std::string env;
   cmSystemTools::GetEnv(varName, env);
 
-  bool const haveVar = var && *var;
+  bool const haveVar = cmNonempty(var);
   bool const haveEnv = !env.empty();
   if ((haveVar || haveEnv) && this->WarnedCMP0074.insert(varName).second) {
     std::ostringstream w;
     w << cmPolicies::GetPolicyWarning(cmPolicies::CMP0074) << "\n";
     if (haveVar) {
       w << "CMake variable " << varName << " is set to:\n"
-        << "  " << var << "\n";
+        << "  " << *var << "\n";
     }
     if (haveEnv) {
       w << "Environment variable " << varName << " is set to:\n"
@@ -269,31 +275,14 @@ cmListFileBacktrace cmMakefile::GetBacktrace() const
   return this->Backtrace;
 }
 
-cmListFileBacktrace cmMakefile::GetBacktrace(cmCommandContext const& cc) const
-{
-  cmListFileContext lfc;
-  lfc.Name = cc.Name.Original;
-  lfc.Line = cc.Line;
-  lfc.FilePath = this->StateSnapshot.GetExecutionListFile();
-  return this->Backtrace.Push(lfc);
-}
-
-cmListFileContext cmMakefile::GetExecutionContext() const
-{
-  cmListFileContext const& cur = this->Backtrace.Top();
-  cmListFileContext lfc;
-  lfc.Name = cur.Name;
-  lfc.Line = cur.Line;
-  lfc.FilePath = this->StateSnapshot.GetExecutionListFile();
-  return lfc;
-}
-
-void cmMakefile::PrintCommandTrace(const cmListFileFunction& lff) const
+void cmMakefile::PrintCommandTrace(
+  cmListFileFunction const& lff,
+  cm::optional<std::string> const& deferId) const
 {
   // Check if current file in the list of requested to trace...
   std::vector<std::string> const& trace_only_this_files =
     this->GetCMakeInstance()->GetTraceSources();
-  std::string const& full_path = this->GetExecutionFilePath();
+  std::string const& full_path = this->GetBacktrace().Top().FilePath;
   std::string const& only_filename = cmSystemTools::GetFilenameName(full_path);
   bool trace = trace_only_this_files.empty();
   if (!trace) {
@@ -313,21 +302,60 @@ void cmMakefile::PrintCommandTrace(const cmListFileFunction& lff) const
   }
 
   std::ostringstream msg;
-  msg << full_path << "(" << lff.Line << "):  ";
-  msg << lff.Name.Original << "(";
-  bool expand = this->GetCMakeInstance()->GetTraceExpand();
+  std::vector<std::string> args;
   std::string temp;
-  for (cmListFileArgument const& arg : lff.Arguments) {
-    if (expand) {
+  bool expand = this->GetCMakeInstance()->GetTraceExpand();
+
+  args.reserve(lff.Arguments().size());
+  for (cmListFileArgument const& arg : lff.Arguments()) {
+    if (expand && arg.Delim != cmListFileArgument::Bracket) {
       temp = arg.Value;
       this->ExpandVariablesInString(temp);
-      msg << temp;
+      args.push_back(temp);
     } else {
-      msg << arg.Value;
+      args.push_back(arg.Value);
     }
-    msg << " ";
   }
-  msg << ")";
+
+  switch (this->GetCMakeInstance()->GetTraceFormat()) {
+    case cmake::TraceFormat::TRACE_JSON_V1: {
+#ifndef CMAKE_BOOTSTRAP
+      Json::Value val;
+      Json::StreamWriterBuilder builder;
+      builder["indentation"] = "";
+      val["file"] = full_path;
+      val["line"] = static_cast<Json::Value::Int64>(lff.Line());
+      if (deferId) {
+        val["defer"] = *deferId;
+      }
+      val["cmd"] = lff.OriginalName();
+      val["args"] = Json::Value(Json::arrayValue);
+      for (std::string const& arg : args) {
+        val["args"].append(arg);
+      }
+      val["time"] = cmSystemTools::GetTime();
+      val["frame"] =
+        static_cast<Json::Value::UInt64>(this->ExecutionStatusStack.size());
+      msg << Json::writeString(builder, val);
+#endif
+      break;
+    }
+    case cmake::TraceFormat::TRACE_HUMAN:
+      msg << full_path << "(" << lff.Line() << "):";
+      if (deferId) {
+        msg << "DEFERRED:" << *deferId << ":";
+      }
+      msg << "  " << lff.OriginalName() << "(";
+
+      for (std::string const& arg : args) {
+        msg << arg << " ";
+      }
+      msg << ")";
+      break;
+    case cmake::TraceFormat::TRACE_UNDEFINED:
+      msg << "INTERNAL ERROR: Trace format is TRACE_UNDEFINED";
+      break;
+  }
 
   auto& f = this->GetCMakeInstance()->GetTraceFile();
   if (f) {
@@ -341,19 +369,31 @@ void cmMakefile::PrintCommandTrace(const cmListFileFunction& lff) const
 class cmMakefileCall
 {
 public:
-  cmMakefileCall(cmMakefile* mf, cmCommandContext const& cc,
-                 cmExecutionStatus& status)
+  cmMakefileCall(cmMakefile* mf, cmListFileFunction const& lff,
+                 cm::optional<std::string> deferId, cmExecutionStatus& status)
     : Makefile(mf)
   {
     cmListFileContext const& lfc = cmListFileContext::FromCommandContext(
-      cc, this->Makefile->StateSnapshot.GetExecutionListFile());
+      lff, this->Makefile->StateSnapshot.GetExecutionListFile(),
+      std::move(deferId));
     this->Makefile->Backtrace = this->Makefile->Backtrace.Push(lfc);
     ++this->Makefile->RecursionDepth;
     this->Makefile->ExecutionStatusStack.push_back(&status);
+#if !defined(CMAKE_BOOTSTRAP)
+    if (this->Makefile->GetCMakeInstance()->IsProfilingEnabled()) {
+      this->Makefile->GetCMakeInstance()->GetProfilingOutput().StartEntry(lff,
+                                                                          lfc);
+    }
+#endif
   }
 
   ~cmMakefileCall()
   {
+#if !defined(CMAKE_BOOTSTRAP)
+    if (this->Makefile->GetCMakeInstance()->IsProfilingEnabled()) {
+      this->Makefile->GetCMakeInstance()->GetProfilingOutput().StopEntry();
+    }
+#endif
     this->Makefile->ExecutionStatusStack.pop_back();
     --this->Makefile->RecursionDepth;
     this->Makefile->Backtrace = this->Makefile->Backtrace.Pop();
@@ -372,7 +412,8 @@ void cmMakefile::OnExecuteCommand(std::function<void()> callback)
 }
 
 bool cmMakefile::ExecuteCommand(const cmListFileFunction& lff,
-                                cmExecutionStatus& status)
+                                cmExecutionStatus& status,
+                                cm::optional<std::string> deferId)
 {
   bool result = true;
 
@@ -387,14 +428,14 @@ bool cmMakefile::ExecuteCommand(const cmListFileFunction& lff,
   }
 
   // Place this call on the call stack.
-  cmMakefileCall stack_manager(this, lff, status);
+  cmMakefileCall stack_manager(this, lff, std::move(deferId), status);
   static_cast<void>(stack_manager);
 
   // Check for maximum recursion depth.
   int depth = CMake_DEFAULT_RECURSION_LIMIT;
-  const char* depthStr = this->GetDefinition("CMAKE_MAXIMUM_RECURSION_DEPTH");
+  cmProp depthStr = this->GetDefinition("CMAKE_MAXIMUM_RECURSION_DEPTH");
   if (depthStr) {
-    std::istringstream s(depthStr);
+    std::istringstream s(*depthStr);
     int d;
     if (s >> d) {
       depth = d;
@@ -410,21 +451,21 @@ bool cmMakefile::ExecuteCommand(const cmListFileFunction& lff,
 
   // Lookup the command prototype.
   if (cmState::Command command =
-        this->GetState()->GetCommandByExactName(lff.Name.Lower)) {
+        this->GetState()->GetCommandByExactName(lff.LowerCaseName())) {
     // Decide whether to invoke the command.
     if (!cmSystemTools::GetFatalErrorOccured()) {
       // if trace is enabled, print out invoke information
       if (this->GetCMakeInstance()->GetTrace()) {
-        this->PrintCommandTrace(lff);
+        this->PrintCommandTrace(lff, this->Backtrace.Top().DeferId);
       }
       // Try invoking the command.
-      bool invokeSucceeded = command(lff.Arguments, status);
+      bool invokeSucceeded = command(lff.Arguments(), status);
       bool hadNestedError = status.GetNestedError();
       if (!invokeSucceeded || hadNestedError) {
         if (!hadNestedError) {
           // The command invocation requested that we report an error.
           std::string const error =
-            std::string(lff.Name.Original) + " " + status.GetError();
+            std::string(lff.OriginalName()) + " " + status.GetError();
           this->IssueMessage(MessageType::FATAL_ERROR, error);
         }
         result = false;
@@ -436,7 +477,7 @@ bool cmMakefile::ExecuteCommand(const cmListFileFunction& lff,
   } else {
     if (!cmSystemTools::GetFatalErrorOccured()) {
       std::string error =
-        cmStrCat("Unknown CMake command \"", lff.Name.Original, "\".");
+        cmStrCat("Unknown CMake command \"", lff.OriginalName(), "\".");
       this->IssueMessage(MessageType::FATAL_ERROR, error);
       result = false;
       cmSystemTools::SetFatalErrorOccured();
@@ -548,7 +589,7 @@ void cmMakefile::IncludeScope::EnforceCMP0011()
         std::ostringstream w;
         w << cmPolicies::GetPolicyWarning(cmPolicies::CMP0011) << "\n"
           << "The included script\n  "
-          << this->Makefile->GetExecutionFilePath() << "\n"
+          << this->Makefile->GetBacktrace().Top().FilePath << "\n"
           << "affects policy settings.  "
           << "CMake is implying the NO_POLICY_SCOPE option for compatibility, "
           << "so the effects are applied to the including context.";
@@ -561,7 +602,7 @@ void cmMakefile::IncludeScope::EnforceCMP0011()
       /* clang-format off */
       e << cmPolicies::GetRequiredPolicyError(cmPolicies::CMP0011) << "\n"
         << "The included script\n  "
-        << this->Makefile->GetExecutionFilePath() << "\n"
+        << this->Makefile->GetBacktrace().Top().FilePath << "\n"
         << "affects policy settings, so it requires this policy to be set.";
       /* clang-format on */
       this->Makefile->IssueMessage(MessageType::FATAL_ERROR, e.str());
@@ -578,8 +619,8 @@ void cmMakefile::IncludeScope::EnforceCMP0011()
 bool cmMakefile::ReadDependentFile(const std::string& filename,
                                    bool noPolicyScope)
 {
-  if (const char* def = this->GetDefinition("CMAKE_CURRENT_LIST_FILE")) {
-    this->AddDefinition("CMAKE_PARENT_LIST_FILE", def);
+  if (cmProp def = this->GetDefinition("CMAKE_CURRENT_LIST_FILE")) {
+    this->AddDefinition("CMAKE_PARENT_LIST_FILE", *def);
   }
   std::string filenametoread = cmSystemTools::CollapseFullPath(
     filename, this->GetCurrentSourceDirectory());
@@ -592,7 +633,7 @@ bool cmMakefile::ReadDependentFile(const std::string& filename,
     return false;
   }
 
-  this->ReadListFile(listFile, filenametoread);
+  this->RunListFile(listFile, filenametoread);
   if (cmSystemTools::GetFatalErrorOccured()) {
     incScope.Quiet();
   }
@@ -633,6 +674,53 @@ private:
   bool ReportError;
 };
 
+class cmMakefile::DeferScope
+{
+public:
+  DeferScope(cmMakefile* mf, std::string const& deferredInFile)
+    : Makefile(mf)
+  {
+    cmListFileContext lfc;
+    lfc.Line = cmListFileContext::DeferPlaceholderLine;
+    lfc.FilePath = deferredInFile;
+    this->Makefile->Backtrace = this->Makefile->Backtrace.Push(lfc);
+    this->Makefile->DeferRunning = true;
+  }
+
+  ~DeferScope()
+  {
+    this->Makefile->DeferRunning = false;
+    this->Makefile->Backtrace = this->Makefile->Backtrace.Pop();
+  }
+
+  DeferScope(const DeferScope&) = delete;
+  DeferScope& operator=(const DeferScope&) = delete;
+
+private:
+  cmMakefile* Makefile;
+};
+
+class cmMakefile::DeferCallScope
+{
+public:
+  DeferCallScope(cmMakefile* mf, std::string const& deferredFromFile)
+    : Makefile(mf)
+  {
+    this->Makefile->StateSnapshot =
+      this->Makefile->GetState()->CreateDeferCallSnapshot(
+        this->Makefile->StateSnapshot, deferredFromFile);
+    assert(this->Makefile->StateSnapshot.IsValid());
+  }
+
+  ~DeferCallScope() { this->Makefile->PopSnapshot(); }
+
+  DeferCallScope(const DeferCallScope&) = delete;
+  DeferCallScope& operator=(const DeferCallScope&) = delete;
+
+private:
+  cmMakefile* Makefile;
+};
+
 bool cmMakefile::ReadListFile(const std::string& filename)
 {
   std::string filenametoread = cmSystemTools::CollapseFullPath(
@@ -646,15 +734,37 @@ bool cmMakefile::ReadListFile(const std::string& filename)
     return false;
   }
 
-  this->ReadListFile(listFile, filenametoread);
+  this->RunListFile(listFile, filenametoread);
   if (cmSystemTools::GetFatalErrorOccured()) {
     scope.Quiet();
   }
   return true;
 }
 
-void cmMakefile::ReadListFile(cmListFile const& listFile,
-                              std::string const& filenametoread)
+bool cmMakefile::ReadListFileAsString(const std::string& content,
+                                      const std::string& virtualFileName)
+{
+  std::string filenametoread = cmSystemTools::CollapseFullPath(
+    virtualFileName, this->GetCurrentSourceDirectory());
+
+  ListFileScope scope(this, filenametoread);
+
+  cmListFile listFile;
+  if (!listFile.ParseString(content.c_str(), virtualFileName.c_str(),
+                            this->GetMessenger(), this->Backtrace)) {
+    return false;
+  }
+
+  this->RunListFile(listFile, filenametoread);
+  if (cmSystemTools::GetFatalErrorOccured()) {
+    scope.Quiet();
+  }
+  return true;
+}
+
+void cmMakefile::RunListFile(cmListFile const& listFile,
+                             std::string const& filenametoread,
+                             DeferCommands* defer)
 {
   // add this list file to the list of dependencies
   this->ListFiles.push_back(filenametoread);
@@ -684,7 +794,33 @@ void cmMakefile::ReadListFile(cmListFile const& listFile,
       break;
     }
   }
-  this->CheckForUnusedVariables();
+
+  // Run any deferred commands.
+  if (defer) {
+    // Add a backtrace level indicating calls are deferred.
+    DeferScope scope(this, filenametoread);
+
+    // Iterate by index in case one deferred call schedules another.
+    // NOLINTNEXTLINE(modernize-loop-convert)
+    for (size_t i = 0; i < defer->Commands.size(); ++i) {
+      DeferCommand& d = defer->Commands[i];
+      if (d.Id.empty()) {
+        // Cancelled.
+        continue;
+      }
+      // Mark as executed.
+      std::string id = std::move(d.Id);
+
+      // The deferred call may have come from another file.
+      DeferCallScope callScope(this, d.FilePath);
+
+      cmExecutionStatus status(*this);
+      this->ExecuteCommand(d.Command, status, std::move(id));
+      if (cmSystemTools::GetFatalErrorOccured()) {
+        break;
+      }
+    }
+  }
 
   this->AddDefinition("CMAKE_PARENT_LIST_FILE", currentParentFile);
   this->AddDefinition("CMAKE_CURRENT_LIST_FILE", currentFile);
@@ -732,23 +868,24 @@ void cmMakefile::EnforceDirectoryLevelRules() const
 }
 
 void cmMakefile::AddEvaluationFile(
-  const std::string& inputFile,
+  const std::string& inputFile, const std::string& targetName,
   std::unique_ptr<cmCompiledGeneratorExpression> outputName,
   std::unique_ptr<cmCompiledGeneratorExpression> condition,
   bool inputIsContent)
 {
-  this->EvaluationFiles.push_back(new cmGeneratorExpressionEvaluationFile(
-    inputFile, std::move(outputName), std::move(condition), inputIsContent,
-    this->GetPolicyStatus(cmPolicies::CMP0070)));
+  this->EvaluationFiles.push_back(
+    cm::make_unique<cmGeneratorExpressionEvaluationFile>(
+      inputFile, targetName, std::move(outputName), std::move(condition),
+      inputIsContent, this->GetPolicyStatus(cmPolicies::CMP0070)));
 }
 
-std::vector<cmGeneratorExpressionEvaluationFile*>
+const std::vector<std::unique_ptr<cmGeneratorExpressionEvaluationFile>>&
 cmMakefile::GetEvaluationFiles() const
 {
   return this->EvaluationFiles;
 }
 
-std::vector<cmExportBuildFileGenerator*>
+std::vector<std::unique_ptr<cmExportBuildFileGenerator>> const&
 cmMakefile::GetExportBuildFileGenerators() const
 {
   return this->ExportBuildFileGenerators;
@@ -757,16 +894,21 @@ cmMakefile::GetExportBuildFileGenerators() const
 void cmMakefile::RemoveExportBuildFileGeneratorCMP0024(
   cmExportBuildFileGenerator* gen)
 {
-  auto it = std::find(this->ExportBuildFileGenerators.begin(),
-                      this->ExportBuildFileGenerators.end(), gen);
+  auto it =
+    std::find_if(this->ExportBuildFileGenerators.begin(),
+                 this->ExportBuildFileGenerators.end(),
+                 [gen](std::unique_ptr<cmExportBuildFileGenerator> const& p) {
+                   return p.get() == gen;
+                 });
   if (it != this->ExportBuildFileGenerators.end()) {
     this->ExportBuildFileGenerators.erase(it);
   }
 }
 
-void cmMakefile::AddExportBuildFileGenerator(cmExportBuildFileGenerator* gen)
+void cmMakefile::AddExportBuildFileGenerator(
+  std::unique_ptr<cmExportBuildFileGenerator> gen)
 {
-  this->ExportBuildFileGenerators.push_back(gen);
+  this->ExportBuildFileGenerators.emplace_back(std::move(gen));
 }
 
 namespace {
@@ -780,41 +922,46 @@ struct file_not_persistent
 };
 }
 
-void cmMakefile::AddFinalAction(FinalAction action)
+void cmMakefile::AddGeneratorAction(GeneratorAction action)
 {
-  this->FinalActions.push_back(std::move(action));
+  assert(!this->GeneratorActionsInvoked);
+  this->GeneratorActions.emplace_back(std::move(action), this->Backtrace);
 }
 
-void cmMakefile::FinalPass()
+void cmMakefile::DoGenerate(cmLocalGenerator& lg)
 {
   // do all the variable expansions here
   this->ExpandVariablesCMP0019();
 
   // give all the commands a chance to do something
   // after the file has been parsed before generation
-  for (FinalAction& action : this->FinalActions) {
-    action(*this);
+  for (const BT<GeneratorAction>& action : this->GeneratorActions) {
+    action.Value(lg, action.Backtrace);
   }
+  this->GeneratorActionsInvoked = true;
+  this->DelayedOutputFiles.clear();
+  this->DelayedOutputFilesHaveGenex = false;
 
   // go through all configured files and see which ones still exist.
   // we don't want cmake to re-run if a configured file is created and deleted
   // during processing as that would make it a transient file that can't
   // influence the build process
-  cmEraseIf(this->OutputFiles, file_not_persistent());
+  cm::erase_if(this->OutputFiles, file_not_persistent());
 
   // if a configured file is used as input for another configured file,
   // and then deleted it will show up in the input list files so we
   // need to scan those too
-  cmEraseIf(this->ListFiles, file_not_persistent());
+  cm::erase_if(this->ListFiles, file_not_persistent());
 }
 
 // Generate the output file
-void cmMakefile::ConfigureFinalPass()
+void cmMakefile::Generate(cmLocalGenerator& lg)
 {
-  this->FinalPass();
-  const char* oldValue = this->GetDefinition("CMAKE_BACKWARDS_COMPATIBILITY");
+  this->DoGenerate(lg);
+  cmProp oldValue = this->GetDefinition("CMAKE_BACKWARDS_COMPATIBILITY");
   if (oldValue &&
-      cmSystemTools::VersionCompare(cmSystemTools::OP_LESS, oldValue, "2.4")) {
+      cmSystemTools::VersionCompare(cmSystemTools::OP_LESS, oldValue->c_str(),
+                                    "2.4")) {
     this->GetCMakeInstance()->IssueMessage(
       MessageType::FATAL_ERROR,
       "You have set CMAKE_BACKWARDS_COMPATIBILITY to a CMake version less "
@@ -823,6 +970,39 @@ void cmMakefile::ConfigureFinalPass()
       "use any CMake 2.8.x release or lower.",
       this->Backtrace);
   }
+}
+
+namespace {
+// There are still too many implicit backtraces through cmMakefile.  As a
+// workaround we reset the backtrace temporarily.
+struct BacktraceGuard
+{
+  BacktraceGuard(cmListFileBacktrace& lfbt, cmListFileBacktrace current)
+    : Backtrace(lfbt)
+    , Previous(lfbt)
+  {
+    this->Backtrace = std::move(current);
+  }
+
+  ~BacktraceGuard() { this->Backtrace = std::move(Previous); }
+
+private:
+  cmListFileBacktrace& Backtrace;
+  cmListFileBacktrace Previous;
+};
+
+cm::optional<std::string> MakeOptionalString(const char* str)
+{
+  if (str) {
+    return str;
+  }
+  return cm::nullopt;
+}
+
+const char* GetCStrOrNull(const cm::optional<std::string>& str)
+{
+  return str ? str->c_str() : nullptr;
+}
 }
 
 bool cmMakefile::ValidateCustomCommand(
@@ -842,7 +1022,8 @@ bool cmMakefile::ValidateCustomCommand(
 }
 
 cmTarget* cmMakefile::GetCustomCommandTarget(
-  const std::string& target, cmObjectLibraryCommands objLibCommands) const
+  const std::string& target, cmObjectLibraryCommands objLibCommands,
+  const cmListFileBacktrace& lfbt) const
 {
   // Find the target to which to add the custom command.
   auto ti = this->Targets.find(target);
@@ -876,7 +1057,7 @@ cmTarget* cmMakefile::GetCustomCommandTarget(
         e << "No TARGET '" << target
           << "' has been created in this directory.";
       }
-      this->IssueMessage(messageType, e.str());
+      this->GetCMakeInstance()->IssueMessage(messageType, e.str(), lfbt);
     }
 
     return nullptr;
@@ -889,7 +1070,8 @@ cmTarget* cmMakefile::GetCustomCommandTarget(
     e << "Target \"" << target
       << "\" is an OBJECT library "
          "that may not have PRE_BUILD, PRE_LINK, or POST_BUILD commands.";
-    this->IssueMessage(MessageType::FATAL_ERROR, e.str());
+    this->GetCMakeInstance()->IssueMessage(MessageType::FATAL_ERROR, e.str(),
+                                           lfbt);
     return nullptr;
   }
   if (t->GetType() == cmStateEnums::INTERFACE_LIBRARY) {
@@ -897,7 +1079,8 @@ cmTarget* cmMakefile::GetCustomCommandTarget(
     e << "Target \"" << target
       << "\" is an INTERFACE library "
          "that may not have PRE_BUILD, PRE_LINK, or POST_BUILD commands.";
-    this->IssueMessage(MessageType::FATAL_ERROR, e.str());
+    this->GetCMakeInstance()->IssueMessage(MessageType::FATAL_ERROR, e.str(),
+                                           lfbt);
     return nullptr;
   }
 
@@ -910,9 +1093,10 @@ cmTarget* cmMakefile::AddCustomCommandToTarget(
   const cmCustomCommandLines& commandLines, cmCustomCommandType type,
   const char* comment, const char* workingDir, bool escapeOldStyle,
   bool uses_terminal, const std::string& depfile, const std::string& job_pool,
-  bool command_expand_lists, cmObjectLibraryCommands objLibCommands)
+  bool command_expand_lists, bool stdPipesUTF8)
 {
-  cmTarget* t = this->GetCustomCommandTarget(target, objLibCommands);
+  cmTarget* t = this->GetCustomCommandTarget(
+    target, cmObjectLibraryCommands::Reject, this->Backtrace);
 
   // Validate custom commands.
   if (!t || !this->ValidateCustomCommand(commandLines)) {
@@ -920,175 +1104,85 @@ cmTarget* cmMakefile::AddCustomCommandToTarget(
   }
 
   // Always create the byproduct sources and mark them generated.
-  this->CreateGeneratedSources(byproducts);
+  this->CreateGeneratedByproducts(byproducts);
 
-  this->CommitCustomCommandToTarget(
-    t, byproducts, depends, commandLines, type, comment, workingDir,
-    escapeOldStyle, uses_terminal, depfile, job_pool, command_expand_lists);
+  // Strings could be moved into the callback function with C++14.
+  cm::optional<std::string> commentStr = MakeOptionalString(comment);
+  cm::optional<std::string> workingStr = MakeOptionalString(workingDir);
+
+  // Dispatch command creation to allow generator expressions in outputs.
+  this->AddGeneratorAction(
+    [=](cmLocalGenerator& lg, const cmListFileBacktrace& lfbt) {
+      BacktraceGuard guard(this->Backtrace, lfbt);
+      detail::AddCustomCommandToTarget(
+        lg, lfbt, cmCommandOrigin::Project, t, byproducts, depends,
+        commandLines, type, GetCStrOrNull(commentStr),
+        GetCStrOrNull(workingStr), escapeOldStyle, uses_terminal, depfile,
+        job_pool, command_expand_lists, stdPipesUTF8);
+    });
 
   return t;
 }
 
-void cmMakefile::CommitCustomCommandToTarget(
-  cmTarget* target, const std::vector<std::string>& byproducts,
-  const std::vector<std::string>& depends,
-  const cmCustomCommandLines& commandLines, cmCustomCommandType type,
-  const char* comment, const char* workingDir, bool escapeOldStyle,
-  bool uses_terminal, const std::string& depfile, const std::string& job_pool,
-  bool command_expand_lists)
-{
-  // Add the command to the appropriate build step for the target.
-  std::vector<std::string> no_output;
-  cmCustomCommand cc(this, no_output, byproducts, depends, commandLines,
-                     comment, workingDir);
-  cc.SetEscapeOldStyle(escapeOldStyle);
-  cc.SetEscapeAllowMakeVars(true);
-  cc.SetUsesTerminal(uses_terminal);
-  cc.SetCommandExpandLists(command_expand_lists);
-  cc.SetDepfile(depfile);
-  cc.SetJobPool(job_pool);
-  switch (type) {
-    case cmCustomCommandType::PRE_BUILD:
-      target->AddPreBuildCommand(std::move(cc));
-      break;
-    case cmCustomCommandType::PRE_LINK:
-      target->AddPreLinkCommand(std::move(cc));
-      break;
-    case cmCustomCommandType::POST_BUILD:
-      target->AddPostBuildCommand(std::move(cc));
-      break;
-  }
-
-  this->AddTargetByproducts(target, byproducts);
-}
-
-cmSourceFile* cmMakefile::AddCustomCommandToOutput(
+void cmMakefile::AddCustomCommandToOutput(
   const std::string& output, const std::vector<std::string>& depends,
   const std::string& main_dependency, const cmCustomCommandLines& commandLines,
-  const char* comment, const char* workingDir, bool replace,
-  bool escapeOldStyle, bool uses_terminal, bool command_expand_lists,
-  const std::string& depfile, const std::string& job_pool)
+  const char* comment, const char* workingDir,
+  const CommandSourceCallback& callback, bool replace, bool escapeOldStyle,
+  bool uses_terminal, bool command_expand_lists, const std::string& depfile,
+  const std::string& job_pool, bool stdPipesUTF8)
 {
-  std::vector<std::string> outputs;
-  outputs.push_back(output);
   std::vector<std::string> no_byproducts;
   cmImplicitDependsList no_implicit_depends;
-  return this->AddCustomCommandToOutput(
-    outputs, no_byproducts, depends, main_dependency, no_implicit_depends,
-    commandLines, comment, workingDir, replace, escapeOldStyle, uses_terminal,
-    command_expand_lists, depfile, job_pool);
+  this->AddCustomCommandToOutput(
+    { output }, no_byproducts, depends, main_dependency, no_implicit_depends,
+    commandLines, comment, workingDir, callback, replace, escapeOldStyle,
+    uses_terminal, command_expand_lists, depfile, job_pool, stdPipesUTF8);
 }
 
-cmSourceFile* cmMakefile::AddCustomCommandToOutput(
+void cmMakefile::AddCustomCommandToOutput(
   const std::vector<std::string>& outputs,
   const std::vector<std::string>& byproducts,
   const std::vector<std::string>& depends, const std::string& main_dependency,
   const cmImplicitDependsList& implicit_depends,
   const cmCustomCommandLines& commandLines, const char* comment,
-  const char* workingDir, bool replace, bool escapeOldStyle,
-  bool uses_terminal, bool command_expand_lists, const std::string& depfile,
-  const std::string& job_pool)
+  const char* workingDir, const CommandSourceCallback& callback, bool replace,
+  bool escapeOldStyle, bool uses_terminal, bool command_expand_lists,
+  const std::string& depfile, const std::string& job_pool, bool stdPipesUTF8)
 {
   // Make sure there is at least one output.
   if (outputs.empty()) {
     cmSystemTools::Error("Attempt to add a custom rule with no output!");
-    return nullptr;
+    return;
   }
 
   // Validate custom commands.
   if (!this->ValidateCustomCommand(commandLines)) {
-    return nullptr;
+    return;
   }
 
   // Always create the output sources and mark them generated.
-  this->CreateGeneratedSources(outputs);
-  this->CreateGeneratedSources(byproducts);
+  this->CreateGeneratedOutputs(outputs);
+  this->CreateGeneratedByproducts(byproducts);
 
-  return this->CommitCustomCommandToOutput(
-    outputs, byproducts, depends, main_dependency, implicit_depends,
-    commandLines, comment, workingDir, replace, escapeOldStyle, uses_terminal,
-    command_expand_lists, depfile, job_pool);
-}
+  // Strings could be moved into the callback function with C++14.
+  cm::optional<std::string> commentStr = MakeOptionalString(comment);
+  cm::optional<std::string> workingStr = MakeOptionalString(workingDir);
 
-cmSourceFile* cmMakefile::CommitCustomCommandToOutput(
-  const std::vector<std::string>& outputs,
-  const std::vector<std::string>& byproducts,
-  const std::vector<std::string>& depends, const std::string& main_dependency,
-  const cmImplicitDependsList& implicit_depends,
-  const cmCustomCommandLines& commandLines, const char* comment,
-  const char* workingDir, bool replace, bool escapeOldStyle,
-  bool uses_terminal, bool command_expand_lists, const std::string& depfile,
-  const std::string& job_pool)
-{
-  // Choose a source file on which to store the custom command.
-  cmSourceFile* file = nullptr;
-  if (!commandLines.empty() && !main_dependency.empty()) {
-    // The main dependency was specified.  Use it unless a different
-    // custom command already used it.
-    file = this->GetSource(main_dependency);
-    if (file && file->GetCustomCommand() && !replace) {
-      // The main dependency already has a custom command.
-      if (commandLines == file->GetCustomCommand()->GetCommandLines()) {
-        // The existing custom command is identical.  Silently ignore
-        // the duplicate.
-        return file;
+  // Dispatch command creation to allow generator expressions in outputs.
+  this->AddGeneratorAction(
+    [=](cmLocalGenerator& lg, const cmListFileBacktrace& lfbt) {
+      BacktraceGuard guard(this->Backtrace, lfbt);
+      cmSourceFile* sf = detail::AddCustomCommandToOutput(
+        lg, lfbt, cmCommandOrigin::Project, outputs, byproducts, depends,
+        main_dependency, implicit_depends, commandLines,
+        GetCStrOrNull(commentStr), GetCStrOrNull(workingStr), replace,
+        escapeOldStyle, uses_terminal, command_expand_lists, depfile, job_pool,
+        stdPipesUTF8);
+      if (callback && sf) {
+        callback(sf);
       }
-      // The existing custom command is different.  We need to
-      // generate a rule file for this new command.
-      file = nullptr;
-    } else if (!file) {
-      file = this->CreateSource(main_dependency);
-    }
-  }
-
-  // Generate a rule file if the main dependency is not available.
-  if (!file) {
-    cmGlobalGenerator* gg = this->GetGlobalGenerator();
-
-    // Construct a rule file associated with the first output produced.
-    std::string outName = gg->GenerateRuleFile(outputs[0]);
-
-    // Check if the rule file already exists.
-    file = this->GetSource(outName, cmSourceFileLocationKind::Known);
-    if (file && file->GetCustomCommand() && !replace) {
-      // The rule file already exists.
-      if (commandLines != file->GetCustomCommand()->GetCommandLines()) {
-        cmSystemTools::Error("Attempt to add a custom rule to output \"" +
-                             outName + "\" which already has a custom rule.");
-      }
-      return file;
-    }
-
-    // Create a cmSourceFile for the rule file.
-    if (!file) {
-      file =
-        this->CreateSource(outName, true, cmSourceFileLocationKind::Known);
-    }
-    file->SetProperty("__CMAKE_RULE", "1");
-  }
-
-  // Attach the custom command to the file.
-  if (file) {
-    // Construct a complete list of dependencies.
-    std::vector<std::string> depends2(depends);
-    if (!main_dependency.empty()) {
-      depends2.push_back(main_dependency);
-    }
-
-    std::unique_ptr<cmCustomCommand> cc = cm::make_unique<cmCustomCommand>(
-      this, outputs, byproducts, depends2, commandLines, comment, workingDir);
-    cc->SetEscapeOldStyle(escapeOldStyle);
-    cc->SetEscapeAllowMakeVars(true);
-    cc->SetImplicitDepends(implicit_depends);
-    cc->SetUsesTerminal(uses_terminal);
-    cc->SetCommandExpandLists(command_expand_lists);
-    cc->SetDepfile(depfile);
-    cc->SetJobPool(job_pool);
-    file->SetCustomCommand(std::move(cc));
-
-    this->AddSourceOutputs(file, outputs, byproducts);
-  }
-  return file;
+    });
 }
 
 void cmMakefile::AddCustomCommandOldStyle(
@@ -1136,11 +1230,8 @@ void cmMakefile::AddCustomCommandOldStyle(
   if (sourceFiles.find(source)) {
     // The source looks like a real file.  Use it as the main dependency.
     for (std::string const& output : outputs) {
-      cmSourceFile* sf = this->AddCustomCommandToOutput(
-        output, depends, source, commandLines, comment, nullptr);
-      if (sf) {
-        addRuleFileToTarget(sf);
-      }
+      this->AddCustomCommandToOutput(output, depends, source, commandLines,
+                                     comment, nullptr, addRuleFileToTarget);
     }
   } else {
     std::string no_main_dependency;
@@ -1149,11 +1240,9 @@ void cmMakefile::AddCustomCommandOldStyle(
 
     // The source may not be a real file.  Do not use a main dependency.
     for (std::string const& output : outputs) {
-      cmSourceFile* sf = this->AddCustomCommandToOutput(
-        output, depends2, no_main_dependency, commandLines, comment, nullptr);
-      if (sf) {
-        addRuleFileToTarget(sf);
-      }
+      this->AddCustomCommandToOutput(output, depends2, no_main_dependency,
+                                     commandLines, comment, nullptr,
+                                     addRuleFileToTarget);
     }
   }
 }
@@ -1170,27 +1259,16 @@ bool cmMakefile::AppendCustomCommandToOutput(
 
   // Validate custom commands.
   if (this->ValidateCustomCommand(commandLines)) {
-    // Add command factory to allow generator expressions in output.
-    this->CommitAppendCustomCommandToOutput(output, depends, implicit_depends,
-                                            commandLines);
+    // Dispatch command creation to allow generator expressions in outputs.
+    this->AddGeneratorAction(
+      [=](cmLocalGenerator& lg, const cmListFileBacktrace& lfbt) {
+        BacktraceGuard guard(this->Backtrace, lfbt);
+        detail::AppendCustomCommandToOutput(lg, lfbt, output, depends,
+                                            implicit_depends, commandLines);
+      });
   }
 
   return true;
-}
-
-void cmMakefile::CommitAppendCustomCommandToOutput(
-  const std::string& output, const std::vector<std::string>& depends,
-  const cmImplicitDependsList& implicit_depends,
-  const cmCustomCommandLines& commandLines)
-{
-  // Lookup an existing command.
-  if (cmSourceFile* sf = this->GetSourceFileWithOutput(output)) {
-    if (cmCustomCommand* cc = sf->GetCustomCommand()) {
-      cc->AppendCommands(commandLines);
-      cc->AppendDepends(depends);
-      cc->AppendImplicitDepends(implicit_depends);
-    }
-  }
 }
 
 cmUtilityOutput cmMakefile::GetUtilityOutput(cmTarget* target)
@@ -1215,15 +1293,14 @@ cmUtilityOutput cmMakefile::GetUtilityOutput(cmTarget* target)
 }
 
 cmTarget* cmMakefile::AddUtilityCommand(
-  const std::string& utilityName, cmCommandOrigin origin, bool excludeFromAll,
-  const char* workingDirectory, const std::vector<std::string>& byproducts,
+  const std::string& utilityName, bool excludeFromAll, const char* workingDir,
+  const std::vector<std::string>& byproducts,
   const std::vector<std::string>& depends,
   const cmCustomCommandLines& commandLines, bool escapeOldStyle,
   const char* comment, bool uses_terminal, bool command_expand_lists,
-  const std::string& job_pool)
+  const std::string& job_pool, bool stdPipesUTF8)
 {
-  cmTarget* target =
-    this->AddNewUtilityTarget(utilityName, origin, excludeFromAll);
+  cmTarget* target = this->AddNewUtilityTarget(utilityName, excludeFromAll);
 
   // Validate custom commands.
   if ((commandLines.empty() && depends.empty()) ||
@@ -1236,43 +1313,24 @@ cmTarget* cmMakefile::AddUtilityCommand(
   this->GetOrCreateGeneratedSource(force.Name);
 
   // Always create the byproduct sources and mark them generated.
-  this->CreateGeneratedSources(byproducts);
+  this->CreateGeneratedByproducts(byproducts);
 
-  if (!comment) {
-    // Use an empty comment to avoid generation of default comment.
-    comment = "";
-  }
+  // Strings could be moved into the callback function with C++14.
+  cm::optional<std::string> commentStr = MakeOptionalString(comment);
+  cm::optional<std::string> workingStr = MakeOptionalString(workingDir);
 
-  this->CommitUtilityCommand(target, force, workingDirectory, byproducts,
-                             depends, commandLines, escapeOldStyle, comment,
-                             uses_terminal, command_expand_lists, job_pool);
+  // Dispatch command creation to allow generator expressions in outputs.
+  this->AddGeneratorAction(
+    [=](cmLocalGenerator& lg, const cmListFileBacktrace& lfbt) {
+      BacktraceGuard guard(this->Backtrace, lfbt);
+      detail::AddUtilityCommand(lg, lfbt, cmCommandOrigin::Project, target,
+                                force, GetCStrOrNull(workingStr), byproducts,
+                                depends, commandLines, escapeOldStyle,
+                                GetCStrOrNull(commentStr), uses_terminal,
+                                command_expand_lists, job_pool, stdPipesUTF8);
+    });
 
   return target;
-}
-
-void cmMakefile::CommitUtilityCommand(
-  cmTarget* target, const cmUtilityOutput& force, const char* workingDirectory,
-  const std::vector<std::string>& byproducts,
-  const std::vector<std::string>& depends,
-  const cmCustomCommandLines& commandLines, bool escapeOldStyle,
-  const char* comment, bool uses_terminal, bool command_expand_lists,
-  const std::string& job_pool)
-{
-  std::vector<std::string> forced;
-  forced.push_back(force.Name);
-  std::string no_main_dependency;
-  cmImplicitDependsList no_implicit_depends;
-  bool no_replace = false;
-  cmSourceFile* sf = this->AddCustomCommandToOutput(
-    forced, byproducts, depends, no_main_dependency, no_implicit_depends,
-    commandLines, comment, workingDirectory, no_replace, escapeOldStyle,
-    uses_terminal, command_expand_lists, /*depfile=*/"", job_pool);
-  if (!force.NameCMP0049.empty()) {
-    target->AddSource(force.NameCMP0049);
-  }
-  if (sf) {
-    this->AddTargetByproducts(target, byproducts);
-  }
 }
 
 static void s_AddDefineFlag(std::string const& flag, std::string& dflags)
@@ -1342,28 +1400,27 @@ void cmMakefile::RemoveDefineFlag(std::string const& flag)
 
 void cmMakefile::AddCompileDefinition(std::string const& option)
 {
-  this->AppendProperty("COMPILE_DEFINITIONS", option.c_str());
+  this->AppendProperty("COMPILE_DEFINITIONS", option);
 }
 
 void cmMakefile::AddCompileOption(std::string const& option)
 {
-  this->AppendProperty("COMPILE_OPTIONS", option.c_str());
+  this->AppendProperty("COMPILE_OPTIONS", option);
 }
 
 void cmMakefile::AddLinkOption(std::string const& option)
 {
-  this->AppendProperty("LINK_OPTIONS", option.c_str());
+  this->AppendProperty("LINK_OPTIONS", option);
 }
 
 void cmMakefile::AddLinkDirectory(std::string const& directory, bool before)
 {
-  cmListFileBacktrace lfbt = this->GetBacktrace();
   if (before) {
-    this->StateSnapshot.GetDirectory().PrependLinkDirectoriesEntry(directory,
-                                                                   lfbt);
+    this->StateSnapshot.GetDirectory().PrependLinkDirectoriesEntry(
+      directory, this->Backtrace);
   } else {
-    this->StateSnapshot.GetDirectory().AppendLinkDirectoriesEntry(directory,
-                                                                  lfbt);
+    this->StateSnapshot.GetDirectory().AppendLinkDirectoriesEntry(
+      directory, this->Backtrace);
   }
 }
 
@@ -1408,9 +1465,9 @@ bool cmMakefile::ParseDefineFlag(std::string const& def, bool remove)
   const char* define = def.c_str() + 2;
 
   if (remove) {
-    if (const char* cdefs = this->GetProperty("COMPILE_DEFINITIONS")) {
+    if (cmProp cdefs = this->GetProperty("COMPILE_DEFINITIONS")) {
       // Expand the list.
-      std::vector<std::string> defs = cmExpandedList(cdefs);
+      std::vector<std::string> defs = cmExpandedList(*cdefs);
 
       // Recompose the list without the definition.
       auto defEnd = std::remove(defs.begin(), defs.end(), define);
@@ -1439,29 +1496,32 @@ void cmMakefile::InitializeFromParent(cmMakefile* parent)
   // Include transform property.  There is no per-config version.
   {
     const char* prop = "IMPLICIT_DEPENDS_INCLUDE_TRANSFORM";
-    this->SetProperty(prop, parent->GetProperty(prop));
+    cmProp p = parent->GetProperty(prop);
+    this->SetProperty(prop, cmToCStr(p));
   }
 
   // compile definitions property and per-config versions
   cmPolicies::PolicyStatus polSt = this->GetPolicyStatus(cmPolicies::CMP0043);
   if (polSt == cmPolicies::WARN || polSt == cmPolicies::OLD) {
-    this->SetProperty("COMPILE_DEFINITIONS",
-                      parent->GetProperty("COMPILE_DEFINITIONS"));
-    std::vector<std::string> configs;
-    this->GetConfigurations(configs);
+    cmProp p = parent->GetProperty("COMPILE_DEFINITIONS");
+    this->SetProperty("COMPILE_DEFINITIONS", cmToCStr(p));
+    std::vector<std::string> configs =
+      this->GetGeneratorConfigs(cmMakefile::ExcludeEmptyConfig);
     for (std::string const& config : configs) {
       std::string defPropName =
         cmStrCat("COMPILE_DEFINITIONS_", cmSystemTools::UpperCase(config));
-      const char* prop = parent->GetProperty(defPropName);
-      this->SetProperty(defPropName, prop);
+      cmProp prop = parent->GetProperty(defPropName);
+      this->SetProperty(defPropName, cmToCStr(prop));
     }
   }
 
   // labels
-  this->SetProperty("LABELS", parent->GetProperty("LABELS"));
+  cmProp p = parent->GetProperty("LABELS");
+  this->SetProperty("LABELS", cmToCStr(p));
 
   // link libraries
-  this->SetProperty("LINK_LIBRARIES", parent->GetProperty("LINK_LIBRARIES"));
+  p = parent->GetProperty("LINK_LIBRARIES");
+  this->SetProperty("LINK_LIBRARIES", cmToCStr(p));
 
   // the initial project name
   this->StateSnapshot.SetProjectName(parent->StateSnapshot.GetProjectName());
@@ -1472,8 +1532,25 @@ void cmMakefile::InitializeFromParent(cmMakefile* parent)
   // Imported targets.
   this->ImportedTargets = parent->ImportedTargets;
 
+  // Non-global Alias targets.
+  this->AliasTargets = parent->AliasTargets;
+
   // Recursion depth.
   this->RecursionDepth = parent->RecursionDepth;
+}
+
+void cmMakefile::AddInstallGenerator(std::unique_ptr<cmInstallGenerator> g)
+{
+  if (g) {
+    this->InstallGenerators.push_back(std::move(g));
+  }
+}
+
+void cmMakefile::AddTestGenerator(std::unique_ptr<cmTestGenerator> g)
+{
+  if (g) {
+    this->TestGenerators.push_back(std::move(g));
+  }
 }
 
 void cmMakefile::PushFunctionScope(std::string const& fileName,
@@ -1507,8 +1584,6 @@ void cmMakefile::PopFunctionScope(bool reportError)
 #endif
 
   this->PopLoopBlockBarrier();
-
-  this->CheckForUnusedVariables();
 }
 
 void cmMakefile::PushMacroScope(std::string const& fileName,
@@ -1615,7 +1690,7 @@ void cmMakefile::Configure()
     bool hasVersion = false;
     // search for the right policy command
     for (cmListFileFunction const& func : listFile.Functions) {
-      if (func.Name.Lower == "cmake_minimum_required") {
+      if (func.LowerCaseName() == "cmake_minimum_required") {
         hasVersion = true;
         break;
       }
@@ -1642,7 +1717,7 @@ void cmMakefile::Configure()
         allowedCommands.insert("message");
         isProblem = false;
         for (cmListFileFunction const& func : listFile.Functions) {
-          if (!cmContains(allowedCommands, func.Name.Lower)) {
+          if (!cm::contains(allowedCommands, func.LowerCaseName())) {
             isProblem = true;
             break;
           }
@@ -1655,13 +1730,14 @@ void cmMakefile::Configure()
         this->SetCheckCMP0000(true);
 
         // Implicitly set the version for the user.
-        this->SetPolicyVersion("2.4", std::string());
+        cmPolicies::ApplyPolicyVersion(this, 2, 4, 0,
+                                       cmPolicies::WarnCompat::Off);
       }
     }
     bool hasProject = false;
     // search for a project command
     for (cmListFileFunction const& func : listFile.Functions) {
-      if (func.Name.Lower == "project") {
+      if (func.LowerCaseName() == "project") {
         hasProject = true;
         break;
       }
@@ -1678,17 +1754,19 @@ void cmMakefile::Configure()
         "CMake is pretending there is a \"project(Project)\" command on "
         "the first line.",
         this->Backtrace);
-      cmListFileFunction project;
-      project.Name.Lower = "project";
-      project.Arguments.emplace_back("Project", cmListFileArgument::Unquoted,
-                                     0);
-      project.Arguments.emplace_back("__CMAKE_INJECTED_PROJECT_COMMAND__",
-                                     cmListFileArgument::Unquoted, 0);
+      cmListFileFunction project{ "project",
+                                  0,
+                                  { { "Project", cmListFileArgument::Unquoted,
+                                      0 },
+                                    { "__CMAKE_INJECTED_PROJECT_COMMAND__",
+                                      cmListFileArgument::Unquoted, 0 } } };
       listFile.Functions.insert(listFile.Functions.begin(), project);
     }
   }
 
-  this->ReadListFile(listFile, currentStart);
+  this->Defer = cm::make_unique<DeferCommands>();
+  this->RunListFile(listFile, currentStart, this->Defer.get());
+  this->Defer.reset();
   if (cmSystemTools::GetFatalErrorOccured()) {
     scope.Quiet();
   }
@@ -1763,6 +1841,13 @@ void cmMakefile::AddSubDirectory(const std::string& srcPath,
                                  const std::string& binPath,
                                  bool excludeFromAll, bool immediate)
 {
+  if (this->DeferRunning) {
+    this->IssueMessage(
+      MessageType::FATAL_ERROR,
+      "Subdirectories may not be created during deferred execution.");
+    return;
+  }
+
   // Make sure the binary directory is unique.
   if (!this->EnforceUniqueDir(srcPath, binPath)) {
     return;
@@ -1776,8 +1861,10 @@ void cmMakefile::AddSubDirectory(const std::string& srcPath,
 
   cmSystemTools::MakeDirectory(binPath);
 
-  cmMakefile* subMf = new cmMakefile(this->GlobalGenerator, newSnapshot);
-  this->GetGlobalGenerator()->AddMakefile(subMf);
+  auto subMfu =
+    cm::make_unique<cmMakefile>(this->GlobalGenerator, newSnapshot);
+  auto subMf = subMfu.get();
+  this->GetGlobalGenerator()->AddMakefile(std::move(subMfu));
 
   if (excludeFromAll) {
     subMf->SetProperty("EXCLUDE_FROM_ALL", "TRUE");
@@ -1789,8 +1876,8 @@ void cmMakefile::AddSubDirectory(const std::string& srcPath,
     this->UnConfiguredDirectories.push_back(subMf);
   }
 
-  this->AddInstallGenerator(new cmInstallSubdirectoryGenerator(
-    subMf, binPath.c_str(), excludeFromAll));
+  this->AddInstallGenerator(cm::make_unique<cmInstallSubdirectoryGenerator>(
+    subMf, binPath, excludeFromAll));
 }
 
 const std::string& cmMakefile::GetCurrentSourceDirectory() const
@@ -1820,20 +1907,19 @@ void cmMakefile::AddIncludeDirectories(const std::vector<std::string>& incs,
     return;
   }
 
-  cmListFileBacktrace lfbt = this->GetBacktrace();
   std::string entryString = cmJoin(incs, ";");
   if (before) {
     this->StateSnapshot.GetDirectory().PrependIncludeDirectoriesEntry(
-      entryString, lfbt);
+      entryString, this->Backtrace);
   } else {
     this->StateSnapshot.GetDirectory().AppendIncludeDirectoriesEntry(
-      entryString, lfbt);
+      entryString, this->Backtrace);
   }
 
   // Property on each target:
   for (auto& target : this->Targets) {
     cmTarget& t = target.second;
-    t.InsertInclude(entryString, lfbt, before);
+    t.InsertInclude(entryString, this->Backtrace, before);
   }
 }
 
@@ -1853,9 +1939,6 @@ void cmMakefile::AddSystemIncludeDirectories(const std::set<std::string>& incs)
 
 void cmMakefile::AddDefinition(const std::string& name, cm::string_view value)
 {
-  if (this->VariableInitialized(name)) {
-    this->LogUnused("changing definition", name);
-  }
   this->StateSnapshot.SetDefinition(name, value);
 
 #ifndef CMAKE_BOOTSTRAP
@@ -1877,8 +1960,7 @@ void cmMakefile::AddCacheDefinition(const std::string& name, const char* value,
                                     cmStateEnums::CacheEntryType type,
                                     bool force)
 {
-  const std::string* existingValue =
-    this->GetState()->GetInitializedCacheValue(name);
+  cmProp existingValue = this->GetState()->GetInitializedCacheValue(name);
   // must be outside the following if() to keep it alive long enough
   std::string nvalue;
 
@@ -1917,16 +1999,6 @@ void cmMakefile::AddCacheDefinition(const std::string& name, const char* value,
   this->StateSnapshot.RemoveDefinition(name);
 }
 
-void cmMakefile::CheckForUnusedVariables() const
-{
-  if (!this->WarnUnused) {
-    return;
-  }
-  for (const std::string& key : this->StateSnapshot.UnusedKeys()) {
-    this->LogUnused("out of scope", key);
-  }
-}
-
 void cmMakefile::MarkVariableAsUsed(const std::string& var)
 {
   this->StateSnapshot.GetDefinition(var);
@@ -1954,29 +2026,8 @@ void cmMakefile::MaybeWarnUninitialized(std::string const& variable,
   }
 }
 
-void cmMakefile::LogUnused(const char* reason, const std::string& name) const
-{
-  if (this->WarnUnused) {
-    std::string path;
-    if (!this->ExecutionStatusStack.empty()) {
-      path = this->GetExecutionContext().FilePath;
-    } else {
-      path = cmStrCat(this->GetCurrentSourceDirectory(), "/CMakeLists.txt");
-    }
-
-    if (this->CheckSystemVars || this->IsProjectFile(path.c_str())) {
-      std::ostringstream msg;
-      msg << "unused variable (" << reason << ") \'" << name << "\'";
-      this->IssueMessage(MessageType::AUTHOR_WARNING, msg.str());
-    }
-  }
-}
-
 void cmMakefile::RemoveDefinition(const std::string& name)
 {
-  if (this->VariableInitialized(name)) {
-    this->LogUnused("unsetting", name);
-  }
   this->StateSnapshot.RemoveDefinition(name);
 #ifndef CMAKE_BOOTSTRAP
   cmVariableWatch* vv = this->GetVariableWatch();
@@ -2008,8 +2059,8 @@ void cmMakefile::AddGlobalLinkInformation(cmTarget& target)
     default:;
   }
 
-  if (const char* linkLibsProp = this->GetProperty("LINK_LIBRARIES")) {
-    std::vector<std::string> linkLibs = cmExpandedList(linkLibsProp);
+  if (cmProp linkLibsProp = this->GetProperty("LINK_LIBRARIES")) {
+    std::vector<std::string> linkLibs = cmExpandedList(*linkLibsProp);
 
     for (auto j = linkLibs.begin(); j != linkLibs.end(); ++j) {
       std::string libraryName = *j;
@@ -2027,15 +2078,18 @@ void cmMakefile::AddGlobalLinkInformation(cmTarget& target)
       target.AddLinkLibrary(*this, libraryName, libType);
       target.AppendProperty(
         "INTERFACE_LINK_LIBRARIES",
-        target.GetDebugGeneratorExpressions(libraryName, libType).c_str());
+        target.GetDebugGeneratorExpressions(libraryName, libType));
     }
   }
 }
 
-void cmMakefile::AddAlias(const std::string& lname, std::string const& tgtName)
+void cmMakefile::AddAlias(const std::string& lname, std::string const& tgtName,
+                          bool globallyVisible)
 {
   this->AliasTargets[lname] = tgtName;
-  this->GetGlobalGenerator()->AddAlias(lname, tgtName);
+  if (globallyVisible) {
+    this->GetGlobalGenerator()->AddAlias(lname, tgtName);
+  }
 }
 
 cmTarget* cmMakefile::AddLibrary(const std::string& lname,
@@ -2078,10 +2132,11 @@ cmTarget* cmMakefile::AddExecutable(const std::string& exeName,
 cmTarget* cmMakefile::AddNewTarget(cmStateEnums::TargetType type,
                                    const std::string& name)
 {
-  auto it =
-    this->Targets
-      .emplace(name, cmTarget(name, type, cmTarget::VisibilityNormal, this))
-      .first;
+  auto it = this->Targets
+              .emplace(name,
+                       cmTarget(name, type, cmTarget::VisibilityNormal, this,
+                                cmTarget::PerConfig::Yes))
+              .first;
   this->OrderedTargets.push_back(&it->second);
   this->GetGlobalGenerator()->IndexTarget(&it->second);
   this->GetStateSnapshot().GetDirectory().AddNormalTargetName(name);
@@ -2089,11 +2144,9 @@ cmTarget* cmMakefile::AddNewTarget(cmStateEnums::TargetType type,
 }
 
 cmTarget* cmMakefile::AddNewUtilityTarget(const std::string& utilityName,
-                                          cmCommandOrigin origin,
                                           bool excludeFromAll)
 {
   cmTarget* target = this->AddNewTarget(cmStateEnums::UTILITY, utilityName);
-  target->SetIsGeneratorProvided(origin == cmCommandOrigin::Generator);
   if (excludeFromAll) {
     target->SetProperty("EXCLUDE_FROM_ALL", "TRUE");
   }
@@ -2155,18 +2208,18 @@ cmSourceFile* cmMakefile::LinearGetSourceFileWithOutput(
 
   // Look through all the source files that have custom commands and see if the
   // custom command has the passed source file as an output.
-  for (cmSourceFile* src : this->SourceFiles) {
+  for (const auto& src : this->SourceFiles) {
     // Does this source file have a custom command?
     if (src->GetCustomCommand()) {
       // Does the output of the custom command match the source file name?
       if (AnyOutputMatches(name, src->GetCustomCommand()->GetOutputs())) {
         // Return the first matching output.
-        return src;
+        return src.get();
       }
       if (kind == cmSourceOutputKind::OutputOrByproduct) {
         if (AnyOutputMatches(name, src->GetCustomCommand()->GetByproducts())) {
           // Do not return the source yet as there might be a matching output.
-          fallback = src;
+          fallback = src.get();
         }
       }
     }
@@ -2211,8 +2264,8 @@ cmSourceFile* cmMakefile::GetSourceFileWithOutput(
       (!o->second.Sources.SourceIsByproduct ||
        kind == cmSourceOutputKind::OutputOrByproduct)) {
     // Source file could also be null pointer for example if we found the
-    // byproduct of a utility target or a PRE_BUILD, PRE_LINK, or POST_BUILD
-    // command of a target.
+    // byproduct of a utility target, a PRE_BUILD, PRE_LINK, or POST_BUILD
+    // command of a target, or a not yet created custom command.
     return o->second.Sources.Source;
   }
   return nullptr;
@@ -2220,12 +2273,20 @@ cmSourceFile* cmMakefile::GetSourceFileWithOutput(
 
 bool cmMakefile::MightHaveCustomCommand(const std::string& name) const
 {
-  // This will have to be changed for delaying custom command creation, because
-  // GetSourceFileWithOutput requires the command to be already created.
-  if (cmSourceFile* sf = this->GetSourceFileWithOutput(name)) {
-    if (sf->GetCustomCommand()) {
-      return true;
-    }
+  if (this->DelayedOutputFilesHaveGenex ||
+      cmGeneratorExpression::Find(name) != std::string::npos) {
+    // Could be more restrictive, but for now we assume that there could always
+    // be a match when generator expressions are involved.
+    return true;
+  }
+  // Also see LinearGetSourceFileWithOutput.
+  if (!cmSystemTools::FileIsFullPath(name)) {
+    return AnyOutputMatches(name, this->DelayedOutputFiles);
+  }
+  // Otherwise we use an efficient lookup map.
+  auto o = this->OutputToSource.find(name);
+  if (o != this->OutputToSource.end()) {
+    return o->second.SourceMightBeOutput;
   }
   return false;
 }
@@ -2278,6 +2339,7 @@ void cmMakefile::UpdateOutputToSourceMap(std::string const& output,
   SourceEntry entry;
   entry.Sources.Source = source;
   entry.Sources.SourceIsByproduct = byproduct;
+  entry.SourceMightBeOutput = !byproduct;
 
   auto pr = this->OutputToSource.emplace(output, entry);
   if (!pr.second) {
@@ -2287,6 +2349,7 @@ void cmMakefile::UpdateOutputToSourceMap(std::string const& output,
         (current.Sources.SourceIsByproduct && !byproduct)) {
       current.Sources.Source = source;
       current.Sources.SourceIsByproduct = false;
+      current.SourceMightBeOutput = true;
     } else {
       // Multiple custom commands produce the same output but may
       // be attached to a different source file (MAIN_DEPENDENCY).
@@ -2392,11 +2455,13 @@ cmSourceGroup* cmMakefile::GetOrCreateSourceGroup(
 
 cmSourceGroup* cmMakefile::GetOrCreateSourceGroup(const std::string& name)
 {
-  const char* delimiter = this->GetDefinition("SOURCE_GROUP_DELIMITER");
-  if (delimiter == nullptr) {
-    delimiter = "\\";
+  std::string delimiters;
+  if (cmProp p = this->GetDefinition("SOURCE_GROUP_DELIMITER")) {
+    delimiters = *p;
+  } else {
+    delimiters = "/\\";
   }
-  return this->GetOrCreateSourceGroup(cmTokenize(name, delimiter));
+  return this->GetOrCreateSourceGroup(cmTokenize(name, delimiters));
 }
 
 /**
@@ -2444,14 +2509,14 @@ void cmMakefile::ExpandVariablesCMP0019()
   }
   std::ostringstream w;
 
-  const char* includeDirs = this->GetProperty("INCLUDE_DIRECTORIES");
-  if (mightExpandVariablesCMP0019(includeDirs)) {
-    std::string dirs = includeDirs;
+  cmProp includeDirs = this->GetProperty("INCLUDE_DIRECTORIES");
+  if (includeDirs && mightExpandVariablesCMP0019(includeDirs->c_str())) {
+    std::string dirs = *includeDirs;
     this->ExpandVariablesInString(dirs, true, true);
-    if (pol == cmPolicies::WARN && dirs != includeDirs) {
+    if (pol == cmPolicies::WARN && dirs != *includeDirs) {
       /* clang-format off */
       w << "Evaluated directory INCLUDE_DIRECTORIES\n"
-        << "  " << includeDirs << "\n"
+        << "  " << *includeDirs << "\n"
         << "as\n"
         << "  " << dirs << "\n";
       /* clang-format on */
@@ -2467,25 +2532,25 @@ void cmMakefile::ExpandVariablesCMP0019()
       continue;
     }
     includeDirs = t.GetProperty("INCLUDE_DIRECTORIES");
-    if (mightExpandVariablesCMP0019(includeDirs)) {
-      std::string dirs = includeDirs;
+    if (includeDirs && mightExpandVariablesCMP0019(includeDirs->c_str())) {
+      std::string dirs = *includeDirs;
       this->ExpandVariablesInString(dirs, true, true);
-      if (pol == cmPolicies::WARN && dirs != includeDirs) {
+      if (pol == cmPolicies::WARN && dirs != *includeDirs) {
         /* clang-format off */
         w << "Evaluated target " << t.GetName() << " INCLUDE_DIRECTORIES\n"
-          << "  " << includeDirs << "\n"
+          << "  " << *includeDirs << "\n"
           << "as\n"
           << "  " << dirs << "\n";
         /* clang-format on */
       }
-      t.SetProperty("INCLUDE_DIRECTORIES", dirs.c_str());
+      t.SetProperty("INCLUDE_DIRECTORIES", dirs);
     }
   }
 
-  if (const char* linkDirsProp = this->GetProperty("LINK_DIRECTORIES")) {
-    if (mightExpandVariablesCMP0019(linkDirsProp)) {
-      std::string d = linkDirsProp;
-      std::string orig = linkDirsProp;
+  if (cmProp linkDirsProp = this->GetProperty("LINK_DIRECTORIES")) {
+    if (mightExpandVariablesCMP0019(linkDirsProp->c_str())) {
+      std::string d = *linkDirsProp;
+      const std::string orig = d;
       this->ExpandVariablesInString(d, true, true);
       if (pol == cmPolicies::WARN && d != orig) {
         /* clang-format off */
@@ -2498,20 +2563,17 @@ void cmMakefile::ExpandVariablesCMP0019()
     }
   }
 
-  if (const char* linkLibsProp = this->GetProperty("LINK_LIBRARIES")) {
-    std::vector<std::string> linkLibs = cmExpandedList(linkLibsProp);
+  if (cmProp linkLibsProp = this->GetProperty("LINK_LIBRARIES")) {
+    std::vector<std::string> linkLibs = cmExpandedList(*linkLibsProp);
 
     for (auto l = linkLibs.begin(); l != linkLibs.end(); ++l) {
       std::string libName = *l;
-      if (libName == "optimized") {
-        ++l;
-        libName = *l;
-      } else if (libName == "debug") {
+      if (libName == "optimized"_s || libName == "debug"_s) {
         ++l;
         libName = *l;
       }
       if (mightExpandVariablesCMP0019(libName.c_str())) {
-        std::string orig = libName;
+        const std::string orig = libName;
         this->ExpandVariablesInString(libName, true, true);
         if (pol == cmPolicies::WARN && libName != orig) {
           /* clang-format off */
@@ -2540,22 +2602,21 @@ void cmMakefile::ExpandVariablesCMP0019()
 
 bool cmMakefile::IsOn(const std::string& name) const
 {
-  const char* value = this->GetDefinition(name);
-  return cmIsOn(value);
+  return cmIsOn(this->GetDefinition(name));
 }
 
 bool cmMakefile::IsSet(const std::string& name) const
 {
-  const char* value = this->GetDefinition(name);
+  cmProp value = this->GetDefinition(name);
   if (!value) {
     return false;
   }
 
-  if (!*value) {
+  if (value->empty()) {
     return false;
   }
 
-  if (cmIsNOTFOUND(value)) {
+  if (cmIsNOTFOUND(*value)) {
     return false;
   }
 
@@ -2564,31 +2625,29 @@ bool cmMakefile::IsSet(const std::string& name) const
 
 bool cmMakefile::PlatformIs32Bit() const
 {
-  if (const char* plat_abi =
-        this->GetDefinition("CMAKE_INTERNAL_PLATFORM_ABI")) {
-    if (strcmp(plat_abi, "ELF X32") == 0) {
+  if (cmProp plat_abi = this->GetDefinition("CMAKE_INTERNAL_PLATFORM_ABI")) {
+    if (*plat_abi == "ELF X32") {
       return false;
     }
   }
-  if (const char* sizeof_dptr = this->GetDefinition("CMAKE_SIZEOF_VOID_P")) {
-    return atoi(sizeof_dptr) == 4;
+  if (cmProp sizeof_dptr = this->GetDefinition("CMAKE_SIZEOF_VOID_P")) {
+    return atoi(sizeof_dptr->c_str()) == 4;
   }
   return false;
 }
 
 bool cmMakefile::PlatformIs64Bit() const
 {
-  if (const char* sizeof_dptr = this->GetDefinition("CMAKE_SIZEOF_VOID_P")) {
-    return atoi(sizeof_dptr) == 8;
+  if (cmProp sizeof_dptr = this->GetDefinition("CMAKE_SIZEOF_VOID_P")) {
+    return atoi(sizeof_dptr->c_str()) == 8;
   }
   return false;
 }
 
 bool cmMakefile::PlatformIsx32() const
 {
-  if (const char* plat_abi =
-        this->GetDefinition("CMAKE_INTERNAL_PLATFORM_ABI")) {
-    if (strcmp(plat_abi, "ELF X32") == 0) {
+  if (cmProp plat_abi = this->GetDefinition("CMAKE_INTERNAL_PLATFORM_ABI")) {
+    if (*plat_abi == "ELF X32") {
       return true;
     }
   }
@@ -2615,7 +2674,7 @@ cmMakefile::AppleSDK cmMakefile::GetAppleSDKType() const
   };
 
   for (auto const& entry : sdkDatabase) {
-    if (sdkRoot.find(entry.name) == 0 ||
+    if (cmHasPrefix(sdkRoot, entry.name) ||
         sdkRoot.find(std::string("/") + entry.name) != std::string::npos) {
       return entry.sdk;
     }
@@ -2637,7 +2696,7 @@ const char* cmMakefile::GetSONameFlag(const std::string& language) const
     name += language;
   }
   name += "_FLAG";
-  return GetDefinition(name);
+  return cmToCStr(GetDefinition(name));
 }
 
 bool cmMakefile::CanIWriteThisFile(std::string const& fileName) const
@@ -2660,7 +2719,7 @@ const std::string& cmMakefile::GetRequiredDefinition(
   const std::string& name) const
 {
   static std::string const empty;
-  const std::string* def = GetDef(name);
+  const std::string* def = GetDefinition(name);
   if (!def) {
     cmSystemTools::Error("Error required internal CMake variable not "
                          "set, cmake may not be built correctly.\n"
@@ -2673,7 +2732,7 @@ const std::string& cmMakefile::GetRequiredDefinition(
 
 bool cmMakefile::IsDefinitionSet(const std::string& name) const
 {
-  const std::string* def = this->StateSnapshot.GetDefinition(name);
+  cmProp def = this->StateSnapshot.GetDefinition(name);
   if (!def) {
     def = this->GetState()->GetInitializedCacheValue(name);
   }
@@ -2688,9 +2747,9 @@ bool cmMakefile::IsDefinitionSet(const std::string& name) const
   return def != nullptr;
 }
 
-const std::string* cmMakefile::GetDef(const std::string& name) const
+cmProp cmMakefile::GetDefinition(const std::string& name) const
 {
-  const std::string* def = this->StateSnapshot.GetDefinition(name);
+  cmProp def = this->StateSnapshot.GetDefinition(name);
   if (!def) {
     def = this->GetState()->GetInitializedCacheValue(name);
   }
@@ -2701,7 +2760,7 @@ const std::string* cmMakefile::GetDef(const std::string& name) const
       vv->VariableAccessed(name,
                            def ? cmVariableWatch::VARIABLE_READ_ACCESS
                                : cmVariableWatch::UNKNOWN_VARIABLE_READ_ACCESS,
-                           (def ? def->c_str() : nullptr), this);
+                           cmToCStr(def), this);
 
     if (watch_function_executed) {
       // A callback was executed and may have caused re-allocation of the
@@ -2717,29 +2776,32 @@ const std::string* cmMakefile::GetDef(const std::string& name) const
   return def;
 }
 
-const char* cmMakefile::GetDefinition(const std::string& name) const
-{
-  const std::string* def = GetDef(name);
-  if (!def) {
-    return nullptr;
-  }
-  return def->c_str();
-}
-
 const std::string& cmMakefile::GetSafeDefinition(const std::string& name) const
 {
   static std::string const empty;
-  const std::string* def = GetDef(name);
+  const std::string* def = GetDefinition(name);
   if (!def) {
     return empty;
   }
   return *def;
 }
 
+bool cmMakefile::GetDefExpandList(const std::string& name,
+                                  std::vector<std::string>& out,
+                                  bool emptyArgs) const
+{
+  cmProp def = this->GetDefinition(name);
+  if (!def) {
+    return false;
+  }
+  cmExpandList(*def, out, emptyArgs);
+  return true;
+}
+
 std::vector<std::string> cmMakefile::GetDefinitions() const
 {
   std::vector<std::string> res = this->StateSnapshot.ClosureKeys();
-  cmAppend(res, this->GetState()->GetCacheEntryKeys());
+  cm::append(res, this->GetState()->GetCacheEntryKeys());
   std::sort(res.begin(), res.end());
   return res;
 }
@@ -2881,12 +2943,12 @@ MessageType cmMakefile::ExpandVariablesInStringOld(
 
       // Lookup the definition of VAR.
       std::string var(first + 1, last - first - 2);
-      if (const char* val = this->GetDefinition(var)) {
+      if (cmProp val = this->GetDefinition(var)) {
         // Store the value in the output escaping as requested.
         if (escapeQuotes) {
-          source.append(cmEscapeQuotes(val));
+          source.append(cmEscapeQuotes(*val));
         } else {
-          source.append(val);
+          source.append(*val);
         }
       }
 
@@ -2912,7 +2974,7 @@ MessageType cmMakefile::ExpandVariablesInStringOld(
   parser.SetNoEscapeMode(noEscapes);
   parser.SetReplaceAtSyntax(replaceAt);
   parser.SetRemoveEmpty(removeEmpty);
-  int res = parser.ParseString(source.c_str(), 0);
+  int res = parser.ParseString(source, 0);
   const char* emsg = parser.GetError();
   MessageType mtype = MessageType::LOG;
   if (res && !emsg[0]) {
@@ -2993,6 +3055,68 @@ void cmMakefile::SetRecursionDepth(int recursionDepth)
   this->RecursionDepth = recursionDepth;
 }
 
+std::string cmMakefile::NewDeferId()
+{
+  return this->GetGlobalGenerator()->NewDeferId();
+}
+
+bool cmMakefile::DeferCall(std::string id, std::string file,
+                           cmListFileFunction lff)
+{
+  if (!this->Defer) {
+    return false;
+  }
+  this->Defer->Commands.emplace_back(
+    DeferCommand{ std::move(id), std::move(file), std::move(lff) });
+  return true;
+}
+
+bool cmMakefile::DeferCancelCall(std::string const& id)
+{
+  if (!this->Defer) {
+    return false;
+  }
+  for (DeferCommand& dc : this->Defer->Commands) {
+    if (dc.Id == id) {
+      dc.Id.clear();
+    }
+  }
+  return true;
+}
+
+cm::optional<std::string> cmMakefile::DeferGetCallIds() const
+{
+  cm::optional<std::string> ids;
+  if (this->Defer) {
+    ids = cmJoin(
+      cmMakeRange(this->Defer->Commands)
+        .filter([](DeferCommand const& dc) -> bool { return !dc.Id.empty(); })
+        .transform(
+          [](DeferCommand const& dc) -> std::string const& { return dc.Id; }),
+      ";");
+  }
+  return ids;
+}
+
+cm::optional<std::string> cmMakefile::DeferGetCall(std::string const& id) const
+{
+  cm::optional<std::string> call;
+  if (this->Defer) {
+    std::string tmp;
+    for (DeferCommand const& dc : this->Defer->Commands) {
+      if (dc.Id == id) {
+        tmp = dc.Command.OriginalName();
+        for (cmListFileArgument const& arg : dc.Command.Arguments()) {
+          tmp = cmStrCat(tmp, ';', arg.Value);
+        }
+        break;
+      }
+    }
+    call = std::move(tmp);
+  }
+  return call;
+}
+
 MessageType cmMakefile::ExpandVariablesInStringNew(
   std::string& errorstr, std::string& source, bool escapeQuotes,
   bool noEscapes, bool atOnly, const char* filename, long line,
@@ -3024,20 +3148,25 @@ MessageType cmMakefile::ExpandVariablesInStringNew(
           openstack.pop_back();
           result.append(last, in - last);
           std::string const& lookup = result.substr(var.loc);
-          const char* value = nullptr;
+          cmProp value = nullptr;
           std::string varresult;
           std::string svalue;
           switch (var.domain) {
             case NORMAL:
               if (filename && lookup == lineVar) {
-                varresult = std::to_string(line);
+                cmListFileContext const& top = this->Backtrace.Top();
+                if (top.DeferId) {
+                  varresult = cmStrCat("DEFERRED:"_s, *top.DeferId);
+                } else {
+                  varresult = std::to_string(line);
+                }
               } else {
                 value = this->GetDefinition(lookup);
               }
               break;
             case ENVIRONMENT:
               if (cmSystemTools::GetEnv(lookup, svalue)) {
-                value = svalue.c_str();
+                value = &svalue;
               }
               break;
             case CACHE:
@@ -3047,9 +3176,9 @@ MessageType cmMakefile::ExpandVariablesInStringNew(
           // Get the string we're meant to append to.
           if (value) {
             if (escapeQuotes) {
-              varresult = cmEscapeQuotes(value);
+              varresult = cmEscapeQuotes(*value);
             } else {
-              varresult = value;
+              varresult = *value;
             }
           } else if (!this->SuppressSideEffects) {
             this->MaybeWarnUninitialized(lookup, filename);
@@ -3164,7 +3293,7 @@ MessageType cmMakefile::ExpandVariablesInStringNew(
             if (filename && variable == lineVar) {
               varresult = std::to_string(line);
             } else {
-              const std::string* def = this->GetDef(variable);
+              const std::string* def = this->GetDefinition(variable);
               if (def) {
                 varresult = *def;
               } else if (!this->SuppressSideEffects) {
@@ -3260,28 +3389,27 @@ void cmMakefile::RemoveVariablesInString(std::string& source,
   }
 }
 
-std::string cmMakefile::GetConfigurations(std::vector<std::string>& configs,
-                                          bool singleConfig) const
+std::string cmMakefile::GetDefaultConfiguration() const
 {
   if (this->GetGlobalGenerator()->IsMultiConfig()) {
-    if (const char* configTypes =
-          this->GetDefinition("CMAKE_CONFIGURATION_TYPES")) {
-      cmExpandList(configTypes, configs);
-    }
-    return "";
+    return std::string{};
   }
-  const std::string& buildType = this->GetSafeDefinition("CMAKE_BUILD_TYPE");
-  if (singleConfig && !buildType.empty()) {
-    configs.push_back(buildType);
-  }
-  return buildType;
+  return this->GetSafeDefinition("CMAKE_BUILD_TYPE");
 }
 
-std::vector<std::string> cmMakefile::GetGeneratorConfigs() const
+std::vector<std::string> cmMakefile::GetGeneratorConfigs(
+  GeneratorConfigQuery mode) const
 {
   std::vector<std::string> configs;
-  GetConfigurations(configs);
-  if (configs.empty()) {
+  if (this->GetGlobalGenerator()->IsMultiConfig()) {
+    this->GetDefExpandList("CMAKE_CONFIGURATION_TYPES", configs);
+  } else if (mode != cmMakefile::OnlyMultiConfig) {
+    const std::string& buildType = this->GetSafeDefinition("CMAKE_BUILD_TYPE");
+    if (!buildType.empty()) {
+      configs.emplace_back(buildType);
+    }
+  }
+  if (mode == cmMakefile::IncludeEmptyConfig && configs.empty()) {
     configs.emplace_back();
   }
   return configs;
@@ -3361,20 +3489,10 @@ bool cmMakefile::IsLoopBlock() const
   return !this->LoopBlockCounter.empty() && this->LoopBlockCounter.top() > 0;
 }
 
-std::string cmMakefile::GetExecutionFilePath() const
-{
-  assert(this->StateSnapshot.IsValid());
-  return this->StateSnapshot.GetExecutionListFile();
-}
-
 bool cmMakefile::ExpandArguments(std::vector<cmListFileArgument> const& inArgs,
-                                 std::vector<std::string>& outArgs,
-                                 const char* filename) const
+                                 std::vector<std::string>& outArgs) const
 {
-  std::string efp = this->GetExecutionFilePath();
-  if (!filename) {
-    filename = efp.c_str();
-  }
+  std::string const& filename = this->GetBacktrace().Top().FilePath;
   std::string value;
   outArgs.reserve(inArgs.size());
   for (cmListFileArgument const& i : inArgs) {
@@ -3385,8 +3503,8 @@ bool cmMakefile::ExpandArguments(std::vector<cmListFileArgument> const& inArgs,
     }
     // Expand the variables in the argument.
     value = i.Value;
-    this->ExpandVariablesInString(value, false, false, false, filename, i.Line,
-                                  false, false);
+    this->ExpandVariablesInString(value, false, false, false, filename.c_str(),
+                                  i.Line, false, false);
 
     // If the argument is quoted, it should be one argument.
     // Otherwise, it may be a list of arguments.
@@ -3401,12 +3519,9 @@ bool cmMakefile::ExpandArguments(std::vector<cmListFileArgument> const& inArgs,
 
 bool cmMakefile::ExpandArguments(
   std::vector<cmListFileArgument> const& inArgs,
-  std::vector<cmExpandedCommandArgument>& outArgs, const char* filename) const
+  std::vector<cmExpandedCommandArgument>& outArgs) const
 {
-  std::string efp = this->GetExecutionFilePath();
-  if (!filename) {
-    filename = efp.c_str();
-  }
+  std::string const& filename = this->GetBacktrace().Top().FilePath;
   std::string value;
   outArgs.reserve(inArgs.size());
   for (cmListFileArgument const& i : inArgs) {
@@ -3417,8 +3532,8 @@ bool cmMakefile::ExpandArguments(
     }
     // Expand the variables in the argument.
     value = i.Value;
-    this->ExpandVariablesInString(value, false, false, false, filename, i.Line,
-                                  false, false);
+    this->ExpandVariablesInString(value, false, false, false, filename.c_str(),
+                                  i.Line, false, false);
 
     // If the argument is quoted, it should be one argument.
     // Otherwise, it may be a list of arguments.
@@ -3438,7 +3553,7 @@ void cmMakefile::AddFunctionBlocker(std::unique_ptr<cmFunctionBlocker> fb)
 {
   if (!this->ExecutionStatusStack.empty()) {
     // Record the context in which the blocker is created.
-    fb->SetStartingContext(this->GetExecutionContext());
+    fb->SetStartingContext(this->Backtrace.Top());
   }
 
   this->FunctionBlockers.push(std::move(fb));
@@ -3514,24 +3629,25 @@ cmSourceFile* cmMakefile::CreateSource(const std::string& sourceName,
                                        bool generated,
                                        cmSourceFileLocationKind kind)
 {
-  cmSourceFile* sf = new cmSourceFile(this, sourceName, kind);
+  auto sf = cm::make_unique<cmSourceFile>(this, sourceName, kind);
   if (generated) {
     sf->SetProperty("GENERATED", "1");
   }
-  this->SourceFiles.push_back(sf);
 
   auto name =
     this->GetCMakeInstance()->StripExtension(sf->GetLocation().GetName());
 #if defined(_WIN32) || defined(__APPLE__)
   name = cmSystemTools::LowerCase(name);
 #endif
-  this->SourceFileSearchIndex[name].push_back(sf);
+  this->SourceFileSearchIndex[name].push_back(sf.get());
   // for "Known" paths add direct lookup (used for faster lookup in GetSource)
   if (kind == cmSourceFileLocationKind::Known) {
-    this->KnownFileSearchIndex[sourceName] = sf;
+    this->KnownFileSearchIndex[sourceName] = sf.get();
   }
 
-  return sf;
+  this->SourceFiles.push_back(std::move(sf));
+
+  return this->SourceFiles.back().get();
 }
 
 cmSourceFile* cmMakefile::GetOrCreateSource(const std::string& sourceName,
@@ -3553,11 +3669,41 @@ cmSourceFile* cmMakefile::GetOrCreateGeneratedSource(
   return sf;
 }
 
-void cmMakefile::CreateGeneratedSources(
+void cmMakefile::CreateGeneratedOutputs(
   const std::vector<std::string>& outputs)
 {
-  for (std::string const& output : outputs) {
-    this->GetOrCreateGeneratedSource(output);
+  for (std::string const& o : outputs) {
+    if (cmGeneratorExpression::Find(o) == std::string::npos) {
+      this->GetOrCreateGeneratedSource(o);
+      this->AddDelayedOutput(o);
+    } else {
+      this->DelayedOutputFilesHaveGenex = true;
+    }
+  }
+}
+
+void cmMakefile::CreateGeneratedByproducts(
+  const std::vector<std::string>& byproducts)
+{
+  for (std::string const& o : byproducts) {
+    if (cmGeneratorExpression::Find(o) == std::string::npos) {
+      this->GetOrCreateGeneratedSource(o);
+    }
+  }
+}
+
+void cmMakefile::AddDelayedOutput(std::string const& output)
+{
+  // Note that this vector might contain the output names in a different order
+  // than in source file iteration order.
+  this->DelayedOutputFiles.push_back(output);
+
+  SourceEntry entry;
+  entry.SourceMightBeOutput = true;
+
+  auto pr = this->OutputToSource.emplace(output, entry);
+  if (!pr.second) {
+    pr.first->second.SourceMightBeOutput = true;
   }
 }
 
@@ -3576,6 +3722,12 @@ void cmMakefile::AddTargetObject(std::string const& tgtName,
 void cmMakefile::EnableLanguage(std::vector<std::string> const& lang,
                                 bool optional)
 {
+  if (this->DeferRunning) {
+    this->IssueMessage(
+      MessageType::FATAL_ERROR,
+      "Languages may not be enabled during deferred execution.");
+    return;
+  }
   if (const char* def = this->GetGlobalGenerator()->GetCMakeCFGIntDir()) {
     this->AddDefinition("CMAKE_CFG_INTDIR", def);
   }
@@ -3630,8 +3782,7 @@ int cmMakefile::TryCompile(const std::string& srcdir,
   // be run that way but the cmake object requires a vailid path
   cmake cm(cmake::RoleProject, cmState::Project);
   cm.SetIsInTryCompile(true);
-  cmGlobalGenerator* gg =
-    cm.CreateGlobalGenerator(this->GetGlobalGenerator()->GetName());
+  auto gg = cm.CreateGlobalGenerator(this->GetGlobalGenerator()->GetName());
   if (!gg) {
     this->IssueMessage(MessageType::INTERNAL_ERROR,
                        "Global generator '" +
@@ -3642,7 +3793,7 @@ int cmMakefile::TryCompile(const std::string& srcdir,
     return 1;
   }
   gg->RecursionDepth = this->RecursionDepth;
-  cm.SetGlobalGenerator(gg);
+  cm.SetGlobalGenerator(std::move(gg));
 
   // do a configure
   cm.SetHomeDirectory(srcdir);
@@ -3651,27 +3802,26 @@ int cmMakefile::TryCompile(const std::string& srcdir,
   cm.SetGeneratorPlatform(this->GetSafeDefinition("CMAKE_GENERATOR_PLATFORM"));
   cm.SetGeneratorToolset(this->GetSafeDefinition("CMAKE_GENERATOR_TOOLSET"));
   cm.LoadCache();
-  if (!gg->IsMultiConfig()) {
-    if (const char* config =
+  if (!cm.GetGlobalGenerator()->IsMultiConfig()) {
+    if (cmProp config =
           this->GetDefinition("CMAKE_TRY_COMPILE_CONFIGURATION")) {
       // Tell the single-configuration generator which one to use.
       // Add this before the user-provided CMake arguments in case
       // one of the arguments is -DCMAKE_BUILD_TYPE=...
-      cm.AddCacheEntry("CMAKE_BUILD_TYPE", config, "Build configuration",
-                       cmStateEnums::STRING);
+      cm.AddCacheEntry("CMAKE_BUILD_TYPE", config->c_str(),
+                       "Build configuration", cmStateEnums::STRING);
     }
   }
-  const char* recursionDepth =
-    this->GetDefinition("CMAKE_MAXIMUM_RECURSION_DEPTH");
+  cmProp recursionDepth = this->GetDefinition("CMAKE_MAXIMUM_RECURSION_DEPTH");
   if (recursionDepth) {
-    cm.AddCacheEntry("CMAKE_MAXIMUM_RECURSION_DEPTH", recursionDepth,
+    cm.AddCacheEntry("CMAKE_MAXIMUM_RECURSION_DEPTH", recursionDepth->c_str(),
                      "Maximum recursion depth", cmStateEnums::STRING);
   }
   // if cmake args were provided then pass them in
   if (cmakeArgs) {
     // FIXME: Workaround to ignore unused CLI variables in try-compile.
     //
-    // Ideally we should use SetArgs to honor options like --warn-unused-vars.
+    // Ideally we should use SetArgs for options like --no-warn-unused-cli.
     // However, there is a subtle problem when certain arguments are passed to
     // a macro wrapping around try_compile or try_run that does not escape
     // semicolons in its parameters but just passes ${ARGV} or ${ARGN}.  In
@@ -3690,14 +3840,15 @@ int cmMakefile::TryCompile(const std::string& srcdir,
     // the value VAR=a is sufficient for the try_compile or try_run to get the
     // correct result.  Calling SetArgs here would break such projects that
     // previously built.  Instead we work around the issue by never reporting
-    // unused arguments and ignoring options such as --warn-unused-vars.
+    // unused arguments and ignoring options such as --no-warn-unused-cli.
     cm.SetWarnUnusedCli(false);
     // cm.SetArgs(*cmakeArgs, true);
 
     cm.SetCacheArgs(*cmakeArgs);
   }
   // to save time we pass the EnableLanguage info directly
-  gg->EnableLanguagesFromGenerator(this->GetGlobalGenerator(), this);
+  cm.GetGlobalGenerator()->EnableLanguagesFromGenerator(
+    this->GetGlobalGenerator(), this);
   if (this->IsOn("CMAKE_SUPPRESS_DEVELOPER_WARNINGS")) {
     cm.AddCacheEntry("CMAKE_SUPPRESS_DEVELOPER_WARNINGS", "TRUE", "",
                      cmStateEnums::INTERNAL);
@@ -3777,7 +3928,8 @@ void cmMakefile::DisplayStatus(const std::string& message, float s) const
 }
 
 std::string cmMakefile::GetModulesFile(const std::string& filename,
-                                       bool& system) const
+                                       bool& system, bool debug,
+                                       std::string& debugBuffer) const
 {
   std::string result;
 
@@ -3795,9 +3947,9 @@ std::string cmMakefile::GetModulesFile(const std::string& filename,
   std::string moduleInCMakeModulePath;
 
   // Always search in CMAKE_MODULE_PATH:
-  const char* cmakeModulePath = this->GetDefinition("CMAKE_MODULE_PATH");
+  cmProp cmakeModulePath = this->GetDefinition("CMAKE_MODULE_PATH");
   if (cmakeModulePath) {
-    std::vector<std::string> modulePath = cmExpandedList(cmakeModulePath);
+    std::vector<std::string> modulePath = cmExpandedList(*cmakeModulePath);
 
     // Look through the possible module directories.
     for (std::string itempl : modulePath) {
@@ -3808,6 +3960,9 @@ std::string cmMakefile::GetModulesFile(const std::string& filename,
         moduleInCMakeModulePath = itempl;
         break;
       }
+      if (debug) {
+        debugBuffer = cmStrCat(debugBuffer, "  ", itempl, "\n");
+      }
     }
   }
 
@@ -3816,6 +3971,9 @@ std::string cmMakefile::GetModulesFile(const std::string& filename,
     cmStrCat(cmSystemTools::GetCMakeRoot(), "/Modules/", filename);
   cmSystemTools::ConvertToUnixSlashes(moduleInCMakeRoot);
   if (!cmSystemTools::FileExists(moduleInCMakeRoot)) {
+    if (debug) {
+      debugBuffer = cmStrCat(debugBuffer, "  ", moduleInCMakeRoot, "\n");
+    }
     moduleInCMakeRoot.clear();
   }
 
@@ -3830,14 +3988,14 @@ std::string cmMakefile::GetModulesFile(const std::string& filename,
   }
 
   if (!moduleInCMakeModulePath.empty() && !moduleInCMakeRoot.empty()) {
-    const char* currentFile = this->GetDefinition("CMAKE_CURRENT_LIST_FILE");
+    cmProp currentFile = this->GetDefinition("CMAKE_CURRENT_LIST_FILE");
     std::string mods = cmSystemTools::GetCMakeRoot() + "/Modules/";
-    if (currentFile && cmSystemTools::IsSubDirectory(currentFile, mods)) {
+    if (currentFile && cmSystemTools::IsSubDirectory(*currentFile, mods)) {
       switch (this->GetPolicyStatus(cmPolicies::CMP0017)) {
         case cmPolicies::WARN: {
           std::ostringstream e;
           /* clang-format off */
-          e << "File " << currentFile << " includes "
+          e << "File " << *currentFile << " includes "
             << moduleInCMakeModulePath
             << " (found via CMAKE_MODULE_PATH) which shadows "
             << moduleInCMakeRoot  << ". This may cause errors later on .\n"
@@ -3887,7 +4045,7 @@ void cmMakefile::ConfigureString(const std::string& input, std::string& output,
 
     // Replace #cmakedefine instances.
     if (this->cmDefineRegex.find(line)) {
-      const char* def = this->GetDefinition(this->cmDefineRegex.match(2));
+      cmProp def = this->GetDefinition(this->cmDefineRegex.match(2));
       if (!cmIsOff(def)) {
         const std::string indentation = this->cmDefineRegex.match(1);
         cmSystemTools::ReplaceString(line, "#" + indentation + "cmakedefine",
@@ -3900,7 +4058,7 @@ void cmMakefile::ConfigureString(const std::string& input, std::string& output,
       }
     } else if (this->cmDefine01Regex.find(line)) {
       const std::string indentation = this->cmDefine01Regex.match(1);
-      const char* def = this->GetDefinition(this->cmDefine01Regex.match(2));
+      cmProp def = this->GetDefinition(this->cmDefine01Regex.match(2));
       cmSystemTools::ReplaceString(line, "#" + indentation + "cmakedefine01",
                                    "#" + indentation + "define");
       output += line;
@@ -3936,6 +4094,7 @@ void cmMakefile::ConfigureString(const std::string& input, std::string& output,
 int cmMakefile::ConfigureFile(const std::string& infile,
                               const std::string& outfile, bool copyonly,
                               bool atOnly, bool escapeQuotes,
+                              bool use_source_permissions,
                               cmNewLineStyle newLine)
 {
   int res = 1;
@@ -3959,7 +4118,13 @@ int cmMakefile::ConfigureFile(const std::string& infile,
   this->AddCMakeOutputFile(soutfile);
 
   mode_t perm = 0;
-  cmSystemTools::GetPermissions(sinfile, perm);
+  if (!use_source_permissions) {
+    perm = perm | mode_owner_read | mode_owner_write | mode_group_read |
+      mode_world_read;
+  } else {
+    cmSystemTools::GetPermissions(sinfile, perm);
+  }
+
   std::string::size_type pos = soutfile.rfind('/');
   if (pos != std::string::npos) {
     std::string path = soutfile.substr(0, pos);
@@ -3968,6 +4133,13 @@ int cmMakefile::ConfigureFile(const std::string& infile,
 
   if (copyonly) {
     if (!cmSystemTools::CopyFileIfDifferent(sinfile, soutfile)) {
+      this->IssueMessage(MessageType::FATAL_ERROR,
+                         cmSystemTools::GetLastSystemError());
+      return 0;
+    }
+    if (!cmSystemTools::SetPermissions(soutfile, perm)) {
+      this->IssueMessage(MessageType::FATAL_ERROR,
+                         cmSystemTools::GetLastSystemError());
       return 0;
     }
   } else {
@@ -4018,9 +4190,15 @@ int cmMakefile::ConfigureFile(const std::string& infile,
     fin.close();
     fout.close();
     if (!cmSystemTools::CopyFileIfDifferent(tempOutputFile, soutfile)) {
+      this->IssueMessage(MessageType::FATAL_ERROR,
+                         cmSystemTools::GetLastSystemError());
       res = 0;
     } else {
-      cmSystemTools::SetPermissions(soutfile, perm);
+      if (!cmSystemTools::SetPermissions(soutfile, perm)) {
+        this->IssueMessage(MessageType::FATAL_ERROR,
+                           cmSystemTools::GetLastSystemError());
+        res = 0;
+      }
     }
     cmSystemTools::RemoveFile(tempOutputFile);
   }
@@ -4029,19 +4207,17 @@ int cmMakefile::ConfigureFile(const std::string& infile,
 
 void cmMakefile::SetProperty(const std::string& prop, const char* value)
 {
-  cmListFileBacktrace lfbt = this->GetBacktrace();
-  this->StateSnapshot.GetDirectory().SetProperty(prop, value, lfbt);
+  this->StateSnapshot.GetDirectory().SetProperty(prop, value, this->Backtrace);
 }
 
-void cmMakefile::AppendProperty(const std::string& prop, const char* value,
-                                bool asString)
+void cmMakefile::AppendProperty(const std::string& prop,
+                                const std::string& value, bool asString)
 {
-  cmListFileBacktrace lfbt = this->GetBacktrace();
   this->StateSnapshot.GetDirectory().AppendProperty(prop, value, asString,
-                                                    lfbt);
+                                                    this->Backtrace);
 }
 
-const char* cmMakefile::GetProperty(const std::string& prop) const
+cmProp cmMakefile::GetProperty(const std::string& prop) const
 {
   // Check for computed properties.
   static std::string output;
@@ -4054,13 +4230,13 @@ const char* cmMakefile::GetProperty(const std::string& prop) const
                      return pair.first;
                    });
     output = cmJoin(keys, ";");
-    return output.c_str();
+    return &output;
   }
 
   return this->StateSnapshot.GetDirectory().GetProperty(prop);
 }
 
-const char* cmMakefile::GetProperty(const std::string& prop, bool chain) const
+cmProp cmMakefile::GetProperty(const std::string& prop, bool chain) const
 {
   return this->StateSnapshot.GetDirectory().GetProperty(prop, chain);
 }
@@ -4090,9 +4266,10 @@ cmTest* cmMakefile::CreateTest(const std::string& testName)
   if (test) {
     return test;
   }
-  test = new cmTest(this);
-  test->SetName(testName);
-  this->Tests[testName] = test;
+  auto newTest = cm::make_unique<cmTest>(this);
+  test = newTest.get();
+  newTest->SetName(testName);
+  this->Tests[testName] = std::move(newTest);
   return test;
 }
 
@@ -4100,7 +4277,7 @@ cmTest* cmMakefile::GetTest(const std::string& testName) const
 {
   auto mi = this->Tests.find(testName);
   if (mi != this->Tests.end()) {
-    return mi->second;
+    return mi->second.get();
   }
   return nullptr;
 }
@@ -4108,7 +4285,7 @@ cmTest* cmMakefile::GetTest(const std::string& testName) const
 void cmMakefile::GetTests(const std::string& config,
                           std::vector<cmTest*>& tests)
 {
-  for (auto generator : this->GetTestGenerators()) {
+  for (const auto& generator : this->GetTestGenerators()) {
     if (generator->TestsForConfig(config)) {
       tests.push_back(generator->GetTest());
     }
@@ -4118,8 +4295,8 @@ void cmMakefile::GetTests(const std::string& config,
 void cmMakefile::AddCMakeDependFilesFromUser()
 {
   std::vector<std::string> deps;
-  if (const char* deps_str = this->GetProperty("CMAKE_CONFIGURE_DEPENDS")) {
-    cmExpandList(deps_str, deps);
+  if (cmProp deps_str = this->GetProperty("CMAKE_CONFIGURE_DEPENDS")) {
+    cmExpandList(*deps_str, deps);
   }
   for (std::string const& dep : deps) {
     if (cmSystemTools::FileIsFullPath(dep)) {
@@ -4178,8 +4355,6 @@ void cmMakefile::PopScope()
 
   this->PopLoopBlockBarrier();
 
-  this->CheckForUnusedVariables();
-
   this->PopSnapshot();
 }
 
@@ -4214,15 +4389,15 @@ cmTarget* cmMakefile::AddImportedTarget(const std::string& name,
     new cmTarget(name, type,
                  global ? cmTarget::VisibilityImportedGlobally
                         : cmTarget::VisibilityImported,
-                 this));
+                 this, cmTarget::PerConfig::Yes));
 
   // Add to the set of available imported targets.
   this->ImportedTargets[name] = target.get();
   this->GetGlobalGenerator()->IndexTarget(target.get());
 
   // Transfer ownership to this cmMakefile object.
-  this->ImportedTargetsOwned.push_back(target.get());
-  return target.release();
+  this->ImportedTargetsOwned.push_back(std::move(target));
+  return this->ImportedTargetsOwned.back().get();
 }
 
 cmTarget* cmMakefile::FindTargetToUse(const std::string& name,
@@ -4230,7 +4405,15 @@ cmTarget* cmMakefile::FindTargetToUse(const std::string& name,
 {
   // Look for an imported target.  These take priority because they
   // are more local in scope and do not have to be globally unique.
-  auto imported = this->ImportedTargets.find(name);
+  auto targetName = name;
+  if (!excludeAliases) {
+    // Look for local alias targets.
+    auto alias = this->AliasTargets.find(name);
+    if (alias != this->AliasTargets.end()) {
+      targetName = alias->second;
+    }
+  }
+  auto imported = this->ImportedTargets.find(targetName);
   if (imported != this->ImportedTargets.end()) {
     return imported->second;
   }
@@ -4246,7 +4429,7 @@ cmTarget* cmMakefile::FindTargetToUse(const std::string& name,
 
 bool cmMakefile::IsAlias(const std::string& name) const
 {
-  if (cmContains(this->AliasTargets, name)) {
+  if (cm::contains(this->AliasTargets, name)) {
     return true;
   }
   return this->GetGlobalGenerator()->IsAlias(name);
@@ -4400,11 +4583,11 @@ static std::string const nMatchesVariable = "CMAKE_MATCH_COUNT";
 
 void cmMakefile::ClearMatches()
 {
-  const char* nMatchesStr = this->GetDefinition(nMatchesVariable);
+  cmProp nMatchesStr = this->GetDefinition(nMatchesVariable);
   if (!nMatchesStr) {
     return;
   }
-  int nMatches = atoi(nMatchesStr);
+  int nMatches = atoi(nMatchesStr->c_str());
   for (int i = 0; i <= nMatches; i++) {
     std::string const& var = matchVariables[i];
     std::string const& s = this->GetSafeDefinition(var);
@@ -4453,7 +4636,7 @@ cmPolicies::PolicyStatus cmMakefile::GetPolicyStatus(cmPolicies::PolicyID id,
 bool cmMakefile::PolicyOptionalWarningEnabled(std::string const& var)
 {
   // Check for an explicit CMAKE_POLICY_WARNING_CMP<NNNN> setting.
-  if (const char* val = this->GetDefinition(var)) {
+  if (cmProp val = this->GetDefinition(var)) {
     return cmIsOn(val);
   }
   // Enable optional policy warnings with --debug-output, --trace,
@@ -4487,7 +4670,7 @@ bool cmMakefile::SetPolicy(cmPolicies::PolicyID id,
 
   // Deprecate old policies, especially those that require a lot
   // of code to maintain the old behavior.
-  if (status == cmPolicies::OLD && id <= cmPolicies::CMP0067 &&
+  if (status == cmPolicies::OLD && id <= cmPolicies::CMP0072 &&
       !(this->GetCMakeInstance()->GetIsInTryCompile() &&
         (
           // Policies set by cmCoreTryCompile::TryCompileCode.
@@ -4529,7 +4712,7 @@ void cmMakefile::PopSnapshot(bool reportError)
   // cmStateSnapshot manages nested policy scopes within it.
   // Since the scope corresponding to the snapshot is closing,
   // reject any still-open nested policy scopes with an error.
-  while (!this->StateSnapshot.CanPopPolicyScope()) {
+  while (this->StateSnapshot.CanPopPolicyScope()) {
     if (reportError) {
       this->IssueMessage(MessageType::FATAL_ERROR,
                          "cmake_policy PUSH without matching POP");
@@ -4545,7 +4728,8 @@ void cmMakefile::PopSnapshot(bool reportError)
 bool cmMakefile::SetPolicyVersion(std::string const& version_min,
                                   std::string const& version_max)
 {
-  return cmPolicies::ApplyPolicyVersion(this, version_min, version_max);
+  return cmPolicies::ApplyPolicyVersion(this, version_min, version_max,
+                                        cmPolicies::WarnCompat::On);
 }
 
 bool cmMakefile::HasCMP0054AlreadyBeenReported(
@@ -4579,517 +4763,6 @@ bool cmMakefile::IgnoreErrorsCMP0061() const
       break;
   }
   return ignoreErrors;
-}
-
-#define FEATURE_STRING(F) , #F
-static const char* const C_FEATURES[] = { nullptr FOR_EACH_C_FEATURE(
-  FEATURE_STRING) };
-
-static const char* const CXX_FEATURES[] = { nullptr FOR_EACH_CXX_FEATURE(
-  FEATURE_STRING) };
-#undef FEATURE_STRING
-
-static const char* const C_STANDARDS[] = { "90", "99", "11" };
-static const char* const CXX_STANDARDS[] = { "98", "11", "14", "17", "20" };
-
-bool cmMakefile::AddRequiredTargetFeature(cmTarget* target,
-                                          const std::string& feature,
-                                          std::string* error) const
-{
-  if (cmGeneratorExpression::Find(feature) != std::string::npos) {
-    target->AppendProperty("COMPILE_FEATURES", feature.c_str());
-    return true;
-  }
-
-  std::string lang;
-  if (!this->CompileFeatureKnown(target, feature, lang, error)) {
-    return false;
-  }
-
-  const char* features = this->CompileFeaturesAvailable(lang, error);
-  if (!features) {
-    return false;
-  }
-
-  std::vector<std::string> availableFeatures = cmExpandedList(features);
-  if (!cmContains(availableFeatures, feature)) {
-    std::ostringstream e;
-    e << "The compiler feature \"" << feature << "\" is not known to " << lang
-      << " compiler\n\""
-      << this->GetDefinition("CMAKE_" + lang + "_COMPILER_ID")
-      << "\"\nversion "
-      << this->GetDefinition("CMAKE_" + lang + "_COMPILER_VERSION") << ".";
-    if (error) {
-      *error = e.str();
-    } else {
-      this->GetCMakeInstance()->IssueMessage(MessageType::FATAL_ERROR, e.str(),
-                                             this->Backtrace);
-    }
-    return false;
-  }
-
-  target->AppendProperty("COMPILE_FEATURES", feature.c_str());
-
-  return lang == "C" || lang == "OBJC"
-    ? this->AddRequiredTargetCFeature(target, feature, lang, error)
-    : this->AddRequiredTargetCxxFeature(target, feature, lang, error);
-}
-
-bool cmMakefile::CompileFeatureKnown(cmTarget const* target,
-                                     const std::string& feature,
-                                     std::string& lang,
-                                     std::string* error) const
-{
-  assert(cmGeneratorExpression::Find(feature) == std::string::npos);
-
-  bool isCFeature =
-    std::find_if(cm::cbegin(C_FEATURES) + 1, cm::cend(C_FEATURES),
-                 cmStrCmp(feature)) != cm::cend(C_FEATURES);
-  if (isCFeature) {
-    lang = "C";
-    return true;
-  }
-  bool isCxxFeature =
-    std::find_if(cm::cbegin(CXX_FEATURES) + 1, cm::cend(CXX_FEATURES),
-                 cmStrCmp(feature)) != cm::cend(CXX_FEATURES);
-  if (isCxxFeature) {
-    lang = "CXX";
-    return true;
-  }
-  std::ostringstream e;
-  if (error) {
-    e << "specified";
-  } else {
-    e << "Specified";
-  }
-  e << " unknown feature \"" << feature
-    << "\" for "
-       "target \""
-    << target->GetName() << "\".";
-  if (error) {
-    *error = e.str();
-  } else {
-    this->GetCMakeInstance()->IssueMessage(MessageType::FATAL_ERROR, e.str(),
-                                           this->Backtrace);
-  }
-  return false;
-}
-
-const char* cmMakefile::CompileFeaturesAvailable(const std::string& lang,
-                                                 std::string* error) const
-{
-  if (!this->GlobalGenerator->GetLanguageEnabled(lang)) {
-    std::ostringstream e;
-    if (error) {
-      e << "cannot";
-    } else {
-      e << "Cannot";
-    }
-    e << " use features from non-enabled language " << lang;
-    if (error) {
-      *error = e.str();
-    } else {
-      this->GetCMakeInstance()->IssueMessage(MessageType::FATAL_ERROR, e.str(),
-                                             this->Backtrace);
-    }
-    return nullptr;
-  }
-
-  const char* featuresKnown =
-    this->GetDefinition("CMAKE_" + lang + "_COMPILE_FEATURES");
-
-  if (!featuresKnown || !*featuresKnown) {
-    std::ostringstream e;
-    if (error) {
-      e << "no";
-    } else {
-      e << "No";
-    }
-    e << " known features for " << lang << " compiler\n\""
-      << this->GetSafeDefinition("CMAKE_" + lang + "_COMPILER_ID")
-      << "\"\nversion "
-      << this->GetSafeDefinition("CMAKE_" + lang + "_COMPILER_VERSION") << ".";
-    if (error) {
-      *error = e.str();
-    } else {
-      this->GetCMakeInstance()->IssueMessage(MessageType::FATAL_ERROR, e.str(),
-                                             this->Backtrace);
-    }
-    return nullptr;
-  }
-  return featuresKnown;
-}
-
-bool cmMakefile::HaveStandardAvailable(cmTarget const* target,
-                                       std::string const& lang,
-                                       const std::string& feature) const
-{
-  return lang == "C" || lang == "OBJC"
-    ? this->HaveCStandardAvailable(target, feature, lang)
-    : this->HaveCxxStandardAvailable(target, feature, lang);
-}
-
-bool cmMakefile::HaveCStandardAvailable(cmTarget const* target,
-                                        const std::string& feature,
-                                        std::string const& lang) const
-{
-  const char* defaultCStandard =
-    this->GetDefinition(cmStrCat("CMAKE_", lang, "_STANDARD_DEFAULT"));
-  if (!defaultCStandard) {
-    this->IssueMessage(
-      MessageType::INTERNAL_ERROR,
-      cmStrCat("CMAKE_", lang,
-               "_STANDARD_DEFAULT is not set.  COMPILE_FEATURES support "
-               "not fully configured for this compiler."));
-    // Return true so the caller does not try to lookup the default standard.
-    return true;
-  }
-  if (std::find_if(cm::cbegin(C_STANDARDS), cm::cend(C_STANDARDS),
-                   cmStrCmp(defaultCStandard)) == cm::cend(C_STANDARDS)) {
-    const std::string e = cmStrCat("The CMAKE_", lang,
-                                   "_STANDARD_DEFAULT variable contains an "
-                                   "invalid value: \"",
-                                   defaultCStandard, "\".");
-    this->IssueMessage(MessageType::INTERNAL_ERROR, e);
-    return false;
-  }
-
-  bool needC90 = false;
-  bool needC99 = false;
-  bool needC11 = false;
-
-  this->CheckNeededCLanguage(feature, lang, needC90, needC99, needC11);
-
-  const char* existingCStandard =
-    target->GetProperty(cmStrCat(lang, "_STANDARD"));
-  if (!existingCStandard) {
-    existingCStandard = defaultCStandard;
-  }
-
-  if (std::find_if(cm::cbegin(C_STANDARDS), cm::cend(C_STANDARDS),
-                   cmStrCmp(existingCStandard)) == cm::cend(C_STANDARDS)) {
-    const std::string e = cmStrCat(
-      "The ", lang, "_STANDARD property on target \"", target->GetName(),
-      "\" contained an invalid value: \"", existingCStandard, "\".");
-    this->IssueMessage(MessageType::FATAL_ERROR, e);
-    return false;
-  }
-
-  const char* const* existingCIt = existingCStandard
-    ? std::find_if(cm::cbegin(C_STANDARDS), cm::cend(C_STANDARDS),
-                   cmStrCmp(existingCStandard))
-    : cm::cend(C_STANDARDS);
-
-  if (needC11 && existingCStandard &&
-      existingCIt < std::find_if(cm::cbegin(C_STANDARDS),
-                                 cm::cend(C_STANDARDS), cmStrCmp("11"))) {
-    return false;
-  }
-  if (needC99 && existingCStandard &&
-      existingCIt < std::find_if(cm::cbegin(C_STANDARDS),
-                                 cm::cend(C_STANDARDS), cmStrCmp("99"))) {
-    return false;
-  }
-  if (needC90 && existingCStandard &&
-      existingCIt < std::find_if(cm::cbegin(C_STANDARDS),
-                                 cm::cend(C_STANDARDS), cmStrCmp("90"))) {
-    return false;
-  }
-  return true;
-}
-
-bool cmMakefile::IsLaterStandard(std::string const& lang,
-                                 std::string const& lhs,
-                                 std::string const& rhs)
-{
-  if (lang == "C" || lang == "OBJC") {
-    const char* const* rhsIt = std::find_if(
-      cm::cbegin(C_STANDARDS), cm::cend(C_STANDARDS), cmStrCmp(rhs));
-
-    return std::find_if(rhsIt, cm::cend(C_STANDARDS), cmStrCmp(lhs)) !=
-      cm::cend(C_STANDARDS);
-  }
-  const char* const* rhsIt = std::find_if(
-    cm::cbegin(CXX_STANDARDS), cm::cend(CXX_STANDARDS), cmStrCmp(rhs));
-
-  return std::find_if(rhsIt, cm::cend(CXX_STANDARDS), cmStrCmp(lhs)) !=
-    cm::cend(CXX_STANDARDS);
-}
-
-bool cmMakefile::HaveCxxStandardAvailable(cmTarget const* target,
-                                          const std::string& feature,
-                                          std::string const& lang) const
-{
-  const char* defaultCxxStandard =
-    this->GetDefinition(cmStrCat("CMAKE_", lang, "_STANDARD_DEFAULT"));
-  if (!defaultCxxStandard) {
-    this->IssueMessage(
-      MessageType::INTERNAL_ERROR,
-      cmStrCat("CMAKE_", lang,
-               "_STANDARD_DEFAULT is not set.  COMPILE_FEATURES support "
-               "not fully configured for this compiler."));
-    // Return true so the caller does not try to lookup the default standard.
-    return true;
-  }
-  if (std::find_if(cm::cbegin(CXX_STANDARDS), cm::cend(CXX_STANDARDS),
-                   cmStrCmp(defaultCxxStandard)) == cm::cend(CXX_STANDARDS)) {
-    const std::string e =
-      cmStrCat("The CMAKE_", lang, "_STANDARD_DEFAULT variable contains an ",
-               "invalid value: \"", defaultCxxStandard, "\".");
-    this->IssueMessage(MessageType::INTERNAL_ERROR, e);
-    return false;
-  }
-
-  bool needCxx98 = false;
-  bool needCxx11 = false;
-  bool needCxx14 = false;
-  bool needCxx17 = false;
-  bool needCxx20 = false;
-  this->CheckNeededCxxLanguage(feature, lang, needCxx98, needCxx11, needCxx14,
-                               needCxx17, needCxx20);
-
-  const char* existingCxxStandard =
-    target->GetProperty(cmStrCat(lang, "_STANDARD"));
-  if (!existingCxxStandard) {
-    existingCxxStandard = defaultCxxStandard;
-  }
-
-  const char* const* existingCxxLevel =
-    std::find_if(cm::cbegin(CXX_STANDARDS), cm::cend(CXX_STANDARDS),
-                 cmStrCmp(existingCxxStandard));
-  if (existingCxxLevel == cm::cend(CXX_STANDARDS)) {
-    const std::string e = cmStrCat(
-      "The ", lang, "_STANDARD property on target \"", target->GetName(),
-      "\" contained an invalid value: \"", existingCxxStandard, "\".");
-    this->IssueMessage(MessageType::FATAL_ERROR, e);
-    return false;
-  }
-
-  /* clang-format off */
-  const char* const* needCxxLevel =
-    needCxx20 ? &CXX_STANDARDS[4]
-    : needCxx17 ? &CXX_STANDARDS[3]
-    : needCxx14 ? &CXX_STANDARDS[2]
-    : needCxx11 ? &CXX_STANDARDS[1]
-    : needCxx98 ? &CXX_STANDARDS[0]
-    : nullptr;
-  /* clang-format on */
-
-  return !needCxxLevel || needCxxLevel <= existingCxxLevel;
-}
-
-void cmMakefile::CheckNeededCxxLanguage(const std::string& feature,
-                                        std::string const& lang,
-                                        bool& needCxx98, bool& needCxx11,
-                                        bool& needCxx14, bool& needCxx17,
-                                        bool& needCxx20) const
-{
-  if (const char* propCxx98 =
-        this->GetDefinition(cmStrCat("CMAKE_", lang, "98_COMPILE_FEATURES"))) {
-    std::vector<std::string> props = cmExpandedList(propCxx98);
-    needCxx98 = cmContains(props, feature);
-  }
-  if (const char* propCxx11 =
-        this->GetDefinition(cmStrCat("CMAKE_", lang, "11_COMPILE_FEATURES"))) {
-    std::vector<std::string> props = cmExpandedList(propCxx11);
-    needCxx11 = cmContains(props, feature);
-  }
-  if (const char* propCxx14 =
-        this->GetDefinition(cmStrCat("CMAKE_", lang, "14_COMPILE_FEATURES"))) {
-    std::vector<std::string> props = cmExpandedList(propCxx14);
-    needCxx14 = cmContains(props, feature);
-  }
-  if (const char* propCxx17 =
-        this->GetDefinition(cmStrCat("CMAKE_", lang, "17_COMPILE_FEATURES"))) {
-    std::vector<std::string> props = cmExpandedList(propCxx17);
-    needCxx17 = cmContains(props, feature);
-  }
-  if (const char* propCxx20 =
-        this->GetDefinition(cmStrCat("CMAKE_", lang, "20_COMPILE_FEATURES"))) {
-    std::vector<std::string> props = cmExpandedList(propCxx20);
-    needCxx20 = cmContains(props, feature);
-  }
-}
-
-bool cmMakefile::AddRequiredTargetCxxFeature(cmTarget* target,
-                                             const std::string& feature,
-                                             std::string const& lang,
-                                             std::string* error) const
-{
-  bool needCxx98 = false;
-  bool needCxx11 = false;
-  bool needCxx14 = false;
-  bool needCxx17 = false;
-  bool needCxx20 = false;
-
-  this->CheckNeededCxxLanguage(feature, lang, needCxx98, needCxx11, needCxx14,
-                               needCxx17, needCxx20);
-
-  const char* existingCxxStandard =
-    target->GetProperty(cmStrCat(lang, "_STANDARD"));
-  if (existingCxxStandard == nullptr) {
-    const char* defaultCxxStandard =
-      this->GetDefinition(cmStrCat("CMAKE_", lang, "_STANDARD_DEFAULT"));
-    if (defaultCxxStandard && *defaultCxxStandard) {
-      existingCxxStandard = defaultCxxStandard;
-    }
-  }
-  const char* const* existingCxxLevel = nullptr;
-  if (existingCxxStandard) {
-    existingCxxLevel =
-      std::find_if(cm::cbegin(CXX_STANDARDS), cm::cend(CXX_STANDARDS),
-                   cmStrCmp(existingCxxStandard));
-    if (existingCxxLevel == cm::cend(CXX_STANDARDS)) {
-      const std::string e = cmStrCat(
-        "The ", lang, "_STANDARD property on target \"", target->GetName(),
-        "\" contained an invalid value: \"", existingCxxStandard, "\".");
-      if (error) {
-        *error = e;
-      } else {
-        this->GetCMakeInstance()->IssueMessage(MessageType::FATAL_ERROR, e,
-                                               this->Backtrace);
-      }
-      return false;
-    }
-  }
-
-  const char* existingCudaStandard = target->GetProperty("CUDA_STANDARD");
-  const char* const* existingCudaLevel = nullptr;
-  if (existingCudaStandard) {
-    existingCudaLevel =
-      std::find_if(cm::cbegin(CXX_STANDARDS), cm::cend(CXX_STANDARDS),
-                   cmStrCmp(existingCudaStandard));
-    if (existingCudaLevel == cm::cend(CXX_STANDARDS)) {
-      std::ostringstream e;
-      e << "The CUDA_STANDARD property on target \"" << target->GetName()
-        << "\" contained an invalid value: \"" << existingCudaStandard
-        << "\".";
-      if (error) {
-        *error = e.str();
-      } else {
-        this->GetCMakeInstance()->IssueMessage(MessageType::FATAL_ERROR,
-                                               e.str(), this->Backtrace);
-      }
-      return false;
-    }
-  }
-
-  /* clang-format off */
-  const char* const* needCxxLevel =
-    needCxx20 ? &CXX_STANDARDS[4]
-    : needCxx17 ? &CXX_STANDARDS[3]
-    : needCxx14 ? &CXX_STANDARDS[2]
-    : needCxx11 ? &CXX_STANDARDS[1]
-    : needCxx98 ? &CXX_STANDARDS[0]
-    : nullptr;
-  /* clang-format on */
-
-  if (needCxxLevel) {
-    // Ensure the C++ language level is high enough to support
-    // the needed C++ features.
-    if (!existingCxxLevel || existingCxxLevel < needCxxLevel) {
-      target->SetProperty(cmStrCat(lang, "_STANDARD"), *needCxxLevel);
-    }
-
-    // Ensure the CUDA language level is high enough to support
-    // the needed C++ features.
-    if (!existingCudaLevel || existingCudaLevel < needCxxLevel) {
-      target->SetProperty("CUDA_STANDARD", *needCxxLevel);
-    }
-  }
-
-  return true;
-}
-
-void cmMakefile::CheckNeededCLanguage(const std::string& feature,
-                                      std::string const& lang, bool& needC90,
-                                      bool& needC99, bool& needC11) const
-{
-  if (const char* propC90 =
-        this->GetDefinition(cmStrCat("CMAKE_", lang, "90_COMPILE_FEATURES"))) {
-    std::vector<std::string> props = cmExpandedList(propC90);
-    needC90 = cmContains(props, feature);
-  }
-  if (const char* propC99 =
-        this->GetDefinition(cmStrCat("CMAKE_", lang, "99_COMPILE_FEATURES"))) {
-    std::vector<std::string> props = cmExpandedList(propC99);
-    needC99 = cmContains(props, feature);
-  }
-  if (const char* propC11 =
-        this->GetDefinition(cmStrCat("CMAKE_", lang, "11_COMPILE_FEATURES"))) {
-    std::vector<std::string> props = cmExpandedList(propC11);
-    needC11 = cmContains(props, feature);
-  }
-}
-
-bool cmMakefile::AddRequiredTargetCFeature(cmTarget* target,
-                                           const std::string& feature,
-                                           std::string const& lang,
-                                           std::string* error) const
-{
-  bool needC90 = false;
-  bool needC99 = false;
-  bool needC11 = false;
-
-  this->CheckNeededCLanguage(feature, lang, needC90, needC99, needC11);
-
-  const char* existingCStandard =
-    target->GetProperty(cmStrCat(lang, "_STANDARD"));
-  if (existingCStandard == nullptr) {
-    const char* defaultCStandard =
-      this->GetDefinition(cmStrCat("CMAKE_", lang, "_STANDARD_DEFAULT"));
-    if (defaultCStandard && *defaultCStandard) {
-      existingCStandard = defaultCStandard;
-    }
-  }
-  if (existingCStandard) {
-    if (std::find_if(cm::cbegin(C_STANDARDS), cm::cend(C_STANDARDS),
-                     cmStrCmp(existingCStandard)) == cm::cend(C_STANDARDS)) {
-      const std::string e = cmStrCat(
-        "The ", lang, "_STANDARD property on target \"", target->GetName(),
-        "\" contained an invalid value: \"", existingCStandard, "\".");
-      if (error) {
-        *error = e;
-      } else {
-        this->GetCMakeInstance()->IssueMessage(MessageType::FATAL_ERROR, e,
-                                               this->Backtrace);
-      }
-      return false;
-    }
-  }
-  const char* const* existingCIt = existingCStandard
-    ? std::find_if(cm::cbegin(C_STANDARDS), cm::cend(C_STANDARDS),
-                   cmStrCmp(existingCStandard))
-    : cm::cend(C_STANDARDS);
-
-  bool setC90 = needC90 && !existingCStandard;
-  bool setC99 = needC99 && !existingCStandard;
-  bool setC11 = needC11 && !existingCStandard;
-
-  if (needC11 && existingCStandard &&
-      existingCIt < std::find_if(cm::cbegin(C_STANDARDS),
-                                 cm::cend(C_STANDARDS), cmStrCmp("11"))) {
-    setC11 = true;
-  } else if (needC99 && existingCStandard &&
-             existingCIt < std::find_if(cm::cbegin(C_STANDARDS),
-                                        cm::cend(C_STANDARDS),
-                                        cmStrCmp("99"))) {
-    setC99 = true;
-  } else if (needC90 && existingCStandard &&
-             existingCIt < std::find_if(cm::cbegin(C_STANDARDS),
-                                        cm::cend(C_STANDARDS),
-                                        cmStrCmp("90"))) {
-    setC90 = true;
-  }
-
-  if (setC11) {
-    target->SetProperty(cmStrCat(lang, "_STANDARD"), "11");
-  } else if (setC99) {
-    target->SetProperty(cmStrCat(lang, "_STANDARD"), "99");
-  } else if (setC90) {
-    target->SetProperty(cmStrCat(lang, "_STANDARD"), "90");
-  }
-  return true;
 }
 
 cmMakefile::FunctionPushPop::FunctionPushPop(cmMakefile* mf,
