@@ -709,7 +709,7 @@ int uv_cond_init(uv_cond_t* cond) {
   if (err)
     return UV__ERR(err);
 
-#if defined(__OS2__)) && !defined(__hpux)
+#if !defined(__hpux)
   err = pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
   if (err)
     goto error2;

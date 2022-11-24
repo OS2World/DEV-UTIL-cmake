@@ -6,9 +6,3 @@
 
 #IncludeRegexTransform: 
 
-U:/DEV/cmake-os2/Tests/RunCMake/pseudo_tidy.c
-stdio.h
--
-string.h
--
-

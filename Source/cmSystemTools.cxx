@@ -6,9 +6,13 @@
 #  define _POSIX_C_SOURCE 200809L
 #endif
 #if defined(__OpenBSD__) || defined(__FreeBSD__) || defined(__NetBSD__) ||    \
-  defined(__QNX__)
+  defined(__QNX__) || defined(__OS2__)
 // For isascii
 #  define _XOPEN_SOURCE 700
+#endif
+
+#ifdef __OS2__
+extern char **environ;
 #endif
 
 #include "cmSystemTools.h"

@@ -879,7 +879,7 @@ static int uv__udp_set_membership6(uv_udp_t* handle,
     !defined(__NetBSD__) &&                                         \
     !defined(__ANDROID__) &&                                        \
     !defined(__DragonFly__) &                                       \
-    !defined(__QNX__)
+    !defined(__QNX__) && !defined(__OS2__)
 static int uv__udp_set_source_membership4(uv_udp_t* handle,
                                           const struct sockaddr_in* multicast_addr,
                                           const char* interface_addr,
@@ -930,6 +930,7 @@ static int uv__udp_set_source_membership6(uv_udp_t* handle,
                                           const char* interface_addr,
                                           const struct sockaddr_in6* source_addr,
                                           uv_membership membership) {
+#ifndef __OS2__
   struct group_source_req mreq;
   struct sockaddr_in6 addr6;
   int optname;
@@ -969,7 +970,7 @@ static int uv__udp_set_source_membership6(uv_udp_t* handle,
                  sizeof(mreq))) {
     return UV__ERR(errno);
   }
-
+#endif
   return 0;
 }
 #endif
@@ -1075,7 +1076,7 @@ int uv_udp_set_source_membership(uv_udp_t* handle,
     !defined(__NetBSD__) &&                                         \
     !defined(__ANDROID__) &&                                        \
     !defined(__DragonFly__) &&                                      \
-    !defined(__QNX__)
+    !defined(__QNX__) && !defined(__OS2__)
   int err;
   union uv__sockaddr mcast_addr;
   union uv__sockaddr src_addr;

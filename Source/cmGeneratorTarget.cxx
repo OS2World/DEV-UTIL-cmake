@@ -5025,12 +5025,12 @@ void cmGeneratorTarget::GetFullNameInternal(
       std::string soversionString;
       outBase += *soversion;
       cmSystemTools::ReplaceString(soversionString, ".", "");
-      soversion = soversionString.c_str();
-      int len = std::string(soversion).length();
+      soversion = (cmProp) soversionString.c_str();
+      int len = std::string(cmToCStr(soversion)).length();
       if(outBase.length() + len > 8)
         outBase.erase(8 - len);
 #endif
-      outBase += soversion;
+      outBase += *soversion;
     }
   }
 

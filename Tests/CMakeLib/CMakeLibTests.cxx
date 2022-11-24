@@ -15,7 +15,9 @@ int testCTestBinPacker(int, char*[]);
 int testCTestResourceAllocator(int, char*[]);
 int testCTestResourceSpec(int, char*[]);
 int testCTestResourceGroups(int, char*[]);
+int testGccDepfileReader(int, char*[]);
 int testGeneratedFileStream(int, char*[]);
+int testJSONHelpers(int, char*[]);
 int testRST(int, char*[]);
 int testRange(int, char*[]);
 int testOptional(int, char*[]);
@@ -29,6 +31,8 @@ int testFindPackageCommand(int, char*[]);
 int testUVProcessChain(int, char*[]);
 int testUVRAII(int, char*[]);
 int testUVStreambuf(int, char*[]);
+int testCMExtMemory(int, char*[]);
+int testCMExtAlgorithm(int, char*[]);
 
 
 #ifdef __cplusplus
@@ -74,8 +78,16 @@ static functionMapEntry cmakeGeneratedFunctionMapEntries[] = {
     testCTestResourceGroups
   },
   {
+    "testGccDepfileReader",
+    testGccDepfileReader
+  },
+  {
     "testGeneratedFileStream",
     testGeneratedFileStream
+  },
+  {
+    "testJSONHelpers",
+    testJSONHelpers
   },
   {
     "testRST",
@@ -129,6 +141,14 @@ static functionMapEntry cmakeGeneratedFunctionMapEntries[] = {
     "testUVStreambuf",
     testUVStreambuf
   },
+  {
+    "testCMExtMemory",
+    testCMExtMemory
+  },
+  {
+    "testCMExtAlgorithm",
+    testCMExtAlgorithm
+  },
 
   { CM_NULL, CM_NULL } /* NOLINT */
 };
@@ -140,7 +160,8 @@ static const int NumTests = CM_CAST(int,
    (note that it has to be free'd manually) */
 static char* lowercase(const char* string)
 {
-  char *new_string, *p;
+  char *new_string;
+  char *p;
   size_t stringSize;
 
   stringSize = CM_CAST(size_t, strlen(string) + 1);
@@ -158,7 +179,9 @@ static char* lowercase(const char* string)
 
 int main(int ac, char* av[])
 {
-  int i, testNum = 0, partial_match;
+  int i;
+  int testNum = 0;
+  int partial_match;
   char *arg;
   int testToRun = -1;
 

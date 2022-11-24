@@ -128,6 +128,7 @@ if (OS2)
     src/unix/no-fsevents.c
     src/unix/posix-hrtime.c
     src/unix/posix-poll.c
+    src/unix/no-proctitle.c
     )
 endif()
 

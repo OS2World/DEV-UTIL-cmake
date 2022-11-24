@@ -30,8 +30,8 @@ Tests/RunCMake/CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.
 Tests/RunCMake/CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.o: Source/cmsys/RegularExpression.hxx
 Tests/RunCMake/CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.o: Source/cmsys/SystemTools.hxx
 Tests/RunCMake/CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.o: Tests/RunCMake/CTestResourceAllocation/ctresalloc.cxx
+Tests/RunCMake/CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.o: Utilities/cm3p/uv.h
 Tests/RunCMake/CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.o: Utilities/cmThirdParty.h
-Tests/RunCMake/CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.o: Utilities/cm_uv.h
 Tests/RunCMake/CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.o: Utilities/cmlibuv/include/uv.h
 Tests/RunCMake/CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.o: Utilities/cmlibuv/include/uv/aix.h
 Tests/RunCMake/CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.o: Utilities/cmlibuv/include/uv/bsd.h
@@ -47,5 +47,7 @@ Tests/RunCMake/CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.
 Tests/RunCMake/CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.o: Utilities/cmlibuv/include/uv/unix.h
 Tests/RunCMake/CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.o: Utilities/cmlibuv/include/uv/version.h
 Tests/RunCMake/CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.o: Utilities/cmlibuv/include/uv/win.h
+Tests/RunCMake/CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.o: Utilities/std/cm/optional
 Tests/RunCMake/CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.o: Utilities/std/cm/string_view
+Tests/RunCMake/CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.o: Utilities/std/cm/utility
 

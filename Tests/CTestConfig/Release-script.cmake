@@ -6,7 +6,14 @@ set(CTEST_BINARY_DIRECTORY "U:/DEV/cmake-os2/Tests/CTestConfig/Release-script")
 
 ctest_start(Experimental)
 
-ctest_configure(BUILD "${CTEST_BINARY_DIRECTORY}" RETURN_VALUE rv)
+set(_isMultiConfig "0")
+if(_isMultiConfig)
+  set(cfg_opts "-DCMAKE_CONFIGURATION_TYPES=Debug\\;Release\\;MinSizeRel\\;RelWithDebInfo")
+else()
+  set(cfg_opts)
+endif()
+
+ctest_configure(BUILD "${CTEST_BINARY_DIRECTORY}" OPTIONS "${cfg_opts}" RETURN_VALUE rv)
 if(NOT rv STREQUAL 0)
   message(FATAL_ERROR "*** error in ctest_configure ***")
 endif()

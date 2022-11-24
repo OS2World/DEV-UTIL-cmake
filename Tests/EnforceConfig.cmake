@@ -33,6 +33,7 @@ unset(ENV{CMAKE_GENERATOR})
 unset(ENV{CMAKE_GENERATOR_INSTANCE})
 unset(ENV{CMAKE_GENERATOR_PLATFORM})
 unset(ENV{CMAKE_GENERATOR_TOOLSET})
+unset(ENV{CMAKE_EXPORT_COMPILE_COMMANDS})
 
 # Fake a user home directory to avoid polluting the real one.
 # But provide original ENV{HOME} value in ENV{CTEST_REAL_HOME} for tests that

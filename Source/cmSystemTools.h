@@ -8,7 +8,11 @@
 #include <functional>
 #include <string>
 #include <vector>
-
+#ifdef __OS2__
+#undef __XSI_VISIBLE
+#define __XSI_VISIBLE 700
+#include <sys/signal.h>
+#endif
 #include <cm/string_view>
 
 #include "cmsys/Process.h"

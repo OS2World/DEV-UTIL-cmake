@@ -17,8 +17,25 @@ default_target: all
 .SUFFIXES:
 
 
-# Remove some rules from gmake that .SUFFIXES does not remove.
-SUFFIXES =
+# Disable VCS-based implicit rules.
+% : %,v
+
+
+# Disable VCS-based implicit rules.
+% : RCS/%
+
+
+# Disable VCS-based implicit rules.
+% : RCS/%,v
+
+
+# Disable VCS-based implicit rules.
+% : SCCS/s.%
+
+
+# Disable VCS-based implicit rules.
+% : s.%
+
 
 .SUFFIXES: .hpux_make_needs_suffix_list
 
@@ -26,9 +43,8 @@ SUFFIXES =
 # Command-line flag to silence nested $(MAKE).
 $(VERBOSE)MAKESILENT = -s
 
-# Suppress display of executed commands.
+#Suppress display of executed commands.
 $(VERBOSE).SILENT:
-
 
 # A target that is always out of date.
 cmake_force:
@@ -45,7 +61,7 @@ SHELL = sh
 CMAKE_COMMAND = U:/dev/cmake-os2/Bootstrap.cmk/cmake.exe
 
 # The command to remove a file.
-RM = U:/dev/cmake-os2/Bootstrap.cmk/cmake.exe -E remove -f
+RM = U:/dev/cmake-os2/Bootstrap.cmk/cmake.exe -E rm -f
 
 # Escaping for special characters.
 EQUALS = =
@@ -74,7 +90,7 @@ install/strip/fast: preinstall/fast
 # Special rule for the target rebuild_cache
 rebuild_cache:
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Running CMake to regenerate build system..."
-	../../Bootstrap.cmk/cmake.exe -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)
+	../../Bootstrap.cmk/cmake.exe --regenerate-during-build -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)
 .PHONY : rebuild_cache
 
 # Special rule for the target rebuild_cache
@@ -103,17 +119,6 @@ test/fast: test
 
 .PHONY : test/fast
 
-# Special rule for the target edit_cache
-edit_cache:
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "No interactive CMake dialog available..."
-	../../Bootstrap.cmk/cmake.exe -E echo No\ interactive\ CMake\ dialog\ available.
-.PHONY : edit_cache
-
-# Special rule for the target edit_cache
-edit_cache/fast: edit_cache
-
-.PHONY : edit_cache/fast
-
 # Special rule for the target package_source
 package_source:
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Run CPack packaging tool for source..."
@@ -124,6 +129,17 @@ package_source:
 package_source/fast: package_source
 
 .PHONY : package_source/fast
+
+# Special rule for the target edit_cache
+edit_cache:
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Running CMake cache editor..."
+	../../bin/ccmake.exe -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)
+.PHONY : edit_cache
+
+# Special rule for the target edit_cache
+edit_cache/fast: edit_cache
+
+.PHONY : edit_cache/fast
 
 # Special rule for the target install/local
 install/local: preinstall
@@ -162,7 +178,7 @@ package/fast: package
 
 # The main all target
 all: cmake_check_build_system
-	cd U:/DEV/cmake-os2 && $(CMAKE_COMMAND) -E cmake_progress_start U:/DEV/cmake-os2/CMakeFiles U:/DEV/cmake-os2/Tests/RunCMake/CMakeFiles/progress.marks
+	cd U:/DEV/cmake-os2 && $(CMAKE_COMMAND) -E cmake_progress_start U:/DEV/cmake-os2/CMakeFiles U:/DEV/cmake-os2/Tests/RunCMake//CMakeFiles/progress.marks
 	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 Tests/RunCMake/all
 	$(CMAKE_COMMAND) -E cmake_progress_start U:/DEV/cmake-os2/CMakeFiles 0
 .PHONY : all
@@ -238,19 +254,34 @@ color_warning/fast:
 .PHONY : color_warning/fast
 
 # Convenience name for target.
-Tests/RunCMake/CMakeFiles/ctresalloc.dir/rule:
-	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 Tests/RunCMake/CMakeFiles/ctresalloc.dir/rule
-.PHONY : Tests/RunCMake/CMakeFiles/ctresalloc.dir/rule
+Tests/RunCMake/CMakeFiles/fake_build_command.dir/rule:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 Tests/RunCMake/CMakeFiles/fake_build_command.dir/rule
+.PHONY : Tests/RunCMake/CMakeFiles/fake_build_command.dir/rule
 
 # Convenience name for target.
-ctresalloc: Tests/RunCMake/CMakeFiles/ctresalloc.dir/rule
+fake_build_command: Tests/RunCMake/CMakeFiles/fake_build_command.dir/rule
 
-.PHONY : ctresalloc
+.PHONY : fake_build_command
 
 # fast build rule for target.
-ctresalloc/fast:
-	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/RunCMake/CMakeFiles/ctresalloc.dir/build.make Tests/RunCMake/CMakeFiles/ctresalloc.dir/build
-.PHONY : ctresalloc/fast
+fake_build_command/fast:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/RunCMake/CMakeFiles/fake_build_command.dir/build.make Tests/RunCMake/CMakeFiles/fake_build_command.dir/build
+.PHONY : fake_build_command/fast
+
+# Convenience name for target.
+Tests/RunCMake/CMakeFiles/pseudo_emulator.dir/rule:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 Tests/RunCMake/CMakeFiles/pseudo_emulator.dir/rule
+.PHONY : Tests/RunCMake/CMakeFiles/pseudo_emulator.dir/rule
+
+# Convenience name for target.
+pseudo_emulator: Tests/RunCMake/CMakeFiles/pseudo_emulator.dir/rule
+
+.PHONY : pseudo_emulator
+
+# fast build rule for target.
+pseudo_emulator/fast:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/RunCMake/CMakeFiles/pseudo_emulator.dir/build.make Tests/RunCMake/CMakeFiles/pseudo_emulator.dir/build
+.PHONY : pseudo_emulator/fast
 
 # Convenience name for target.
 Tests/RunCMake/CMakeFiles/pseudo_tidy.dir/rule:
@@ -268,19 +299,19 @@ pseudo_tidy/fast:
 .PHONY : pseudo_tidy/fast
 
 # Convenience name for target.
-Tests/RunCMake/CMakeFiles/pseudo_emulator.dir/rule:
-	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 Tests/RunCMake/CMakeFiles/pseudo_emulator.dir/rule
-.PHONY : Tests/RunCMake/CMakeFiles/pseudo_emulator.dir/rule
+Tests/RunCMake/CMakeFiles/ctresalloc.dir/rule:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 Tests/RunCMake/CMakeFiles/ctresalloc.dir/rule
+.PHONY : Tests/RunCMake/CMakeFiles/ctresalloc.dir/rule
 
 # Convenience name for target.
-pseudo_emulator: Tests/RunCMake/CMakeFiles/pseudo_emulator.dir/rule
+ctresalloc: Tests/RunCMake/CMakeFiles/ctresalloc.dir/rule
 
-.PHONY : pseudo_emulator
+.PHONY : ctresalloc
 
 # fast build rule for target.
-pseudo_emulator/fast:
-	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/RunCMake/CMakeFiles/pseudo_emulator.dir/build.make Tests/RunCMake/CMakeFiles/pseudo_emulator.dir/build
-.PHONY : pseudo_emulator/fast
+ctresalloc/fast:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/RunCMake/CMakeFiles/ctresalloc.dir/build.make Tests/RunCMake/CMakeFiles/ctresalloc.dir/build
+.PHONY : ctresalloc/fast
 
 # Convenience name for target.
 Tests/RunCMake/CMakeFiles/pseudo_emulator_custom_command_arg.dir/rule:
@@ -437,6 +468,33 @@ exit_code.s: exit_code.c.s
 exit_code.c.s:
 	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/RunCMake/CMakeFiles/exit_code.dir/build.make Tests/RunCMake/CMakeFiles/exit_code.dir/exit_code.c.s
 .PHONY : exit_code.c.s
+
+fake_build_command.o: fake_build_command.c.o
+
+.PHONY : fake_build_command.o
+
+# target to build an object file
+fake_build_command.c.o:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/RunCMake/CMakeFiles/fake_build_command.dir/build.make Tests/RunCMake/CMakeFiles/fake_build_command.dir/fake_build_command.c.o
+.PHONY : fake_build_command.c.o
+
+fake_build_command.i: fake_build_command.c.i
+
+.PHONY : fake_build_command.i
+
+# target to preprocess a source file
+fake_build_command.c.i:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/RunCMake/CMakeFiles/fake_build_command.dir/build.make Tests/RunCMake/CMakeFiles/fake_build_command.dir/fake_build_command.c.i
+.PHONY : fake_build_command.c.i
+
+fake_build_command.s: fake_build_command.c.s
+
+.PHONY : fake_build_command.s
+
+# target to generate assembly for a file
+fake_build_command.c.s:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/RunCMake/CMakeFiles/fake_build_command.dir/build.make Tests/RunCMake/CMakeFiles/fake_build_command.dir/fake_build_command.c.s
+.PHONY : fake_build_command.c.s
 
 print_stdin.o: print_stdin.c.o
 
@@ -660,26 +718,27 @@ help:
 	@echo "... all (the default if no target is provided)"
 	@echo "... clean"
 	@echo "... depend"
+	@echo "... edit_cache"
+	@echo "... install"
+	@echo "... install/local"
 	@echo "... install/strip"
-	@echo "... rebuild_cache"
 	@echo "... list_install_components"
+	@echo "... package"
+	@echo "... package_source"
+	@echo "... rebuild_cache"
 	@echo "... test"
-	@echo "... exit_code"
-	@echo "... pseudo_emulator_custom_command"
 	@echo "... color_warning"
 	@echo "... ctresalloc"
-	@echo "... edit_cache"
-	@echo "... pseudo_tidy"
+	@echo "... exit_code"
+	@echo "... fake_build_command"
+	@echo "... print_stdin"
+	@echo "... pseudo_cppcheck"
+	@echo "... pseudo_cpplint"
 	@echo "... pseudo_emulator"
-	@echo "... package_source"
-	@echo "... install/local"
-	@echo "... install"
+	@echo "... pseudo_emulator_custom_command"
 	@echo "... pseudo_emulator_custom_command_arg"
 	@echo "... pseudo_iwyu"
-	@echo "... pseudo_cpplint"
-	@echo "... pseudo_cppcheck"
-	@echo "... print_stdin"
-	@echo "... package"
+	@echo "... pseudo_tidy"
 	@echo "... CTestResourceAllocation/ctresalloc.o"
 	@echo "... CTestResourceAllocation/ctresalloc.i"
 	@echo "... CTestResourceAllocation/ctresalloc.s"
@@ -689,6 +748,9 @@ help:
 	@echo "... exit_code.o"
 	@echo "... exit_code.i"
 	@echo "... exit_code.s"
+	@echo "... fake_build_command.o"
+	@echo "... fake_build_command.i"
+	@echo "... fake_build_command.s"
 	@echo "... print_stdin.o"
 	@echo "... print_stdin.i"
 	@echo "... print_stdin.s"

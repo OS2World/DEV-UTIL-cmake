@@ -17,8 +17,25 @@ default_target: all
 .SUFFIXES:
 
 
-# Remove some rules from gmake that .SUFFIXES does not remove.
-SUFFIXES =
+# Disable VCS-based implicit rules.
+% : %,v
+
+
+# Disable VCS-based implicit rules.
+% : RCS/%
+
+
+# Disable VCS-based implicit rules.
+% : RCS/%,v
+
+
+# Disable VCS-based implicit rules.
+% : SCCS/s.%
+
+
+# Disable VCS-based implicit rules.
+% : s.%
+
 
 .SUFFIXES: .hpux_make_needs_suffix_list
 
@@ -26,9 +43,8 @@ SUFFIXES =
 # Command-line flag to silence nested $(MAKE).
 $(VERBOSE)MAKESILENT = -s
 
-# Suppress display of executed commands.
+#Suppress display of executed commands.
 $(VERBOSE).SILENT:
-
 
 # A target that is always out of date.
 cmake_force:
@@ -45,7 +61,7 @@ SHELL = sh
 CMAKE_COMMAND = U:/dev/cmake-os2/Bootstrap.cmk/cmake.exe
 
 # The command to remove a file.
-RM = U:/dev/cmake-os2/Bootstrap.cmk/cmake.exe -E remove -f
+RM = U:/dev/cmake-os2/Bootstrap.cmk/cmake.exe -E rm -f
 
 # Escaping for special characters.
 EQUALS = =
@@ -116,8 +132,8 @@ list_install_components/fast: list_install_components
 
 # Special rule for the target edit_cache
 edit_cache:
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "No interactive CMake dialog available..."
-	../../Bootstrap.cmk/cmake.exe -E echo No\ interactive\ CMake\ dialog\ available.
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Running CMake cache editor..."
+	../../bin/ccmake.exe -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)
 .PHONY : edit_cache
 
 # Special rule for the target edit_cache
@@ -128,7 +144,7 @@ edit_cache/fast: edit_cache
 # Special rule for the target rebuild_cache
 rebuild_cache:
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Running CMake to regenerate build system..."
-	../../Bootstrap.cmk/cmake.exe -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)
+	../../Bootstrap.cmk/cmake.exe --regenerate-during-build -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)
 .PHONY : rebuild_cache
 
 # Special rule for the target rebuild_cache
@@ -162,7 +178,7 @@ install/local/fast: preinstall/fast
 
 # The main all target
 all: cmake_check_build_system
-	cd U:/DEV/cmake-os2 && $(CMAKE_COMMAND) -E cmake_progress_start U:/DEV/cmake-os2/CMakeFiles U:/DEV/cmake-os2/Tests/CMakeLib/CMakeFiles/progress.marks
+	cd U:/DEV/cmake-os2 && $(CMAKE_COMMAND) -E cmake_progress_start U:/DEV/cmake-os2/CMakeFiles U:/DEV/cmake-os2/Tests/CMakeLib//CMakeFiles/progress.marks
 	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 Tests/CMakeLib/all
 	$(CMAKE_COMMAND) -E cmake_progress_start U:/DEV/cmake-os2/CMakeFiles 0
 .PHONY : all
@@ -375,6 +391,60 @@ testArgumentParser.cxx.s:
 	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/build.make Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/testArgumentParser.cxx.s
 .PHONY : testArgumentParser.cxx.s
 
+testCMExtAlgorithm.o: testCMExtAlgorithm.cxx.o
+
+.PHONY : testCMExtAlgorithm.o
+
+# target to build an object file
+testCMExtAlgorithm.cxx.o:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/build.make Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/testCMExtAlgorithm.cxx.o
+.PHONY : testCMExtAlgorithm.cxx.o
+
+testCMExtAlgorithm.i: testCMExtAlgorithm.cxx.i
+
+.PHONY : testCMExtAlgorithm.i
+
+# target to preprocess a source file
+testCMExtAlgorithm.cxx.i:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/build.make Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/testCMExtAlgorithm.cxx.i
+.PHONY : testCMExtAlgorithm.cxx.i
+
+testCMExtAlgorithm.s: testCMExtAlgorithm.cxx.s
+
+.PHONY : testCMExtAlgorithm.s
+
+# target to generate assembly for a file
+testCMExtAlgorithm.cxx.s:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/build.make Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/testCMExtAlgorithm.cxx.s
+.PHONY : testCMExtAlgorithm.cxx.s
+
+testCMExtMemory.o: testCMExtMemory.cxx.o
+
+.PHONY : testCMExtMemory.o
+
+# target to build an object file
+testCMExtMemory.cxx.o:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/build.make Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/testCMExtMemory.cxx.o
+.PHONY : testCMExtMemory.cxx.o
+
+testCMExtMemory.i: testCMExtMemory.cxx.i
+
+.PHONY : testCMExtMemory.i
+
+# target to preprocess a source file
+testCMExtMemory.cxx.i:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/build.make Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/testCMExtMemory.cxx.i
+.PHONY : testCMExtMemory.cxx.i
+
+testCMExtMemory.s: testCMExtMemory.cxx.s
+
+.PHONY : testCMExtMemory.s
+
+# target to generate assembly for a file
+testCMExtMemory.cxx.s:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/build.make Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/testCMExtMemory.cxx.s
+.PHONY : testCMExtMemory.cxx.s
+
 testCTestBinPacker.o: testCTestBinPacker.cxx.o
 
 .PHONY : testCTestBinPacker.o
@@ -537,6 +607,33 @@ testFindPackageCommand.cxx.s:
 	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/build.make Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/testFindPackageCommand.cxx.s
 .PHONY : testFindPackageCommand.cxx.s
 
+testGccDepfileReader.o: testGccDepfileReader.cxx.o
+
+.PHONY : testGccDepfileReader.o
+
+# target to build an object file
+testGccDepfileReader.cxx.o:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/build.make Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/testGccDepfileReader.cxx.o
+.PHONY : testGccDepfileReader.cxx.o
+
+testGccDepfileReader.i: testGccDepfileReader.cxx.i
+
+.PHONY : testGccDepfileReader.i
+
+# target to preprocess a source file
+testGccDepfileReader.cxx.i:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/build.make Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/testGccDepfileReader.cxx.i
+.PHONY : testGccDepfileReader.cxx.i
+
+testGccDepfileReader.s: testGccDepfileReader.cxx.s
+
+.PHONY : testGccDepfileReader.s
+
+# target to generate assembly for a file
+testGccDepfileReader.cxx.s:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/build.make Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/testGccDepfileReader.cxx.s
+.PHONY : testGccDepfileReader.cxx.s
+
 testGeneratedFileStream.o: testGeneratedFileStream.cxx.o
 
 .PHONY : testGeneratedFileStream.o
@@ -563,6 +660,33 @@ testGeneratedFileStream.s: testGeneratedFileStream.cxx.s
 testGeneratedFileStream.cxx.s:
 	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/build.make Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/testGeneratedFileStream.cxx.s
 .PHONY : testGeneratedFileStream.cxx.s
+
+testJSONHelpers.o: testJSONHelpers.cxx.o
+
+.PHONY : testJSONHelpers.o
+
+# target to build an object file
+testJSONHelpers.cxx.o:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/build.make Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/testJSONHelpers.cxx.o
+.PHONY : testJSONHelpers.cxx.o
+
+testJSONHelpers.i: testJSONHelpers.cxx.i
+
+.PHONY : testJSONHelpers.i
+
+# target to preprocess a source file
+testJSONHelpers.cxx.i:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/build.make Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/testJSONHelpers.cxx.i
+.PHONY : testJSONHelpers.cxx.i
+
+testJSONHelpers.s: testJSONHelpers.cxx.s
+
+.PHONY : testJSONHelpers.s
+
+# target to generate assembly for a file
+testJSONHelpers.cxx.s:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/build.make Tests/CMakeLib/CMakeFiles/CMakeLibTests.dir/testJSONHelpers.cxx.s
+.PHONY : testJSONHelpers.cxx.s
 
 testOptional.o: testOptional.cxx.o
 
@@ -921,20 +1045,20 @@ help:
 	@echo "... all (the default if no target is provided)"
 	@echo "... clean"
 	@echo "... depend"
-	@echo "... install/strip"
-	@echo "... testUVProcessChainHelper"
-	@echo "... runcompilecommands"
-	@echo "... testAffinity"
-	@echo "... package"
-	@echo "... CMakeLibTests"
-	@echo "... package_source"
-	@echo "... test"
-	@echo "... list_install_components"
 	@echo "... edit_cache"
-	@echo "... testEncoding"
-	@echo "... rebuild_cache"
 	@echo "... install"
 	@echo "... install/local"
+	@echo "... install/strip"
+	@echo "... list_install_components"
+	@echo "... package"
+	@echo "... package_source"
+	@echo "... rebuild_cache"
+	@echo "... test"
+	@echo "... CMakeLibTests"
+	@echo "... runcompilecommands"
+	@echo "... testAffinity"
+	@echo "... testEncoding"
+	@echo "... testUVProcessChainHelper"
 	@echo "... CMakeLibTests.o"
 	@echo "... CMakeLibTests.i"
 	@echo "... CMakeLibTests.s"
@@ -947,6 +1071,12 @@ help:
 	@echo "... testArgumentParser.o"
 	@echo "... testArgumentParser.i"
 	@echo "... testArgumentParser.s"
+	@echo "... testCMExtAlgorithm.o"
+	@echo "... testCMExtAlgorithm.i"
+	@echo "... testCMExtAlgorithm.s"
+	@echo "... testCMExtMemory.o"
+	@echo "... testCMExtMemory.i"
+	@echo "... testCMExtMemory.s"
 	@echo "... testCTestBinPacker.o"
 	@echo "... testCTestBinPacker.i"
 	@echo "... testCTestBinPacker.s"
@@ -965,9 +1095,15 @@ help:
 	@echo "... testFindPackageCommand.o"
 	@echo "... testFindPackageCommand.i"
 	@echo "... testFindPackageCommand.s"
+	@echo "... testGccDepfileReader.o"
+	@echo "... testGccDepfileReader.i"
+	@echo "... testGccDepfileReader.s"
 	@echo "... testGeneratedFileStream.o"
 	@echo "... testGeneratedFileStream.i"
 	@echo "... testGeneratedFileStream.s"
+	@echo "... testJSONHelpers.o"
+	@echo "... testJSONHelpers.i"
+	@echo "... testJSONHelpers.s"
 	@echo "... testOptional.o"
 	@echo "... testOptional.i"
 	@echo "... testOptional.s"

@@ -12,8 +12,25 @@
 .SUFFIXES:
 
 
-# Remove some rules from gmake that .SUFFIXES does not remove.
-SUFFIXES =
+# Disable VCS-based implicit rules.
+% : %,v
+
+
+# Disable VCS-based implicit rules.
+% : RCS/%
+
+
+# Disable VCS-based implicit rules.
+% : RCS/%,v
+
+
+# Disable VCS-based implicit rules.
+% : SCCS/s.%
+
+
+# Disable VCS-based implicit rules.
+% : s.%
+
 
 .SUFFIXES: .hpux_make_needs_suffix_list
 
@@ -21,9 +38,8 @@ SUFFIXES =
 # Command-line flag to silence nested $(MAKE).
 $(VERBOSE)MAKESILENT = -s
 
-# Suppress display of executed commands.
+#Suppress display of executed commands.
 $(VERBOSE).SILENT:
-
 
 # A target that is always out of date.
 cmake_force:
@@ -40,7 +56,7 @@ SHELL = sh
 CMAKE_COMMAND = U:/dev/cmake-os2/Bootstrap.cmk/cmake.exe
 
 # The command to remove a file.
-RM = U:/dev/cmake-os2/Bootstrap.cmk/cmake.exe -E remove -f
+RM = U:/dev/cmake-os2/Bootstrap.cmk/cmake.exe -E rm -f
 
 # Escaping for special characters.
 EQUALS = =
@@ -64,7 +80,7 @@ Tests/RunCMake/CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.
 Tests/RunCMake/CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.o: Tests/RunCMake/CMakeFiles/ctresalloc.dir/includes_CXX.rsp
 Tests/RunCMake/CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.o: Tests/RunCMake/CTestResourceAllocation/ctresalloc.cxx
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --progress-dir=U:/DEV/cmake-os2/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object Tests/RunCMake/CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.o"
-	cd U:/DEV/cmake-os2/Tests/RunCMake && U:/usr/local1220/bin/g++.exe  $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.o -c U:/DEV/cmake-os2/Tests/RunCMake/CTestResourceAllocation/ctresalloc.cxx
+	cd U:/DEV/cmake-os2/Tests/RunCMake && U:/usr/local1220/bin/g++.exe $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -o CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.o -c U:/DEV/cmake-os2/Tests/RunCMake/CTestResourceAllocation/ctresalloc.cxx
 
 Tests/RunCMake/CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green "Preprocessing CXX source to CMakeFiles/ctresalloc.dir/CTestResourceAllocation/ctresalloc.cxx.i"
@@ -99,9 +115,10 @@ bin/ctresalloc.exe: Utilities/cmcurl/lib/cmcurl.a
 bin/ctresalloc.exe: Utilities/cmzlib/cmzlib.a
 bin/ctresalloc.exe: u:/extras/lib/libssl.lib
 bin/ctresalloc.exe: u:/extras/lib/libcrypto.lib
+bin/ctresalloc.exe: Utilities/cmnghttp2/cmnghttp2.a
 bin/ctresalloc.exe: Tests/RunCMake/CMakeFiles/ctresalloc.dir/objects1.rsp
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=U:/DEV/cmake-os2/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX executable ../../bin/ctresalloc.exe"
-	cd U:/DEV/cmake-os2/Tests/RunCMake && echo NAME \"ctresalloc\"  > ../../bin/ctresalloc.def && echo DESCRIPTION \"@#cmake build system:0.0#@##1## 12 Nov 2022 19:42:59\ \ \ \ \ Process terminated due to: Segmentation fault::::0::@@ctresalloc\" >> ../../bin/ctresalloc.def && echo  >> ../../bin/ctresalloc.def && U:/usr/local1220/bin/g++.exe  -Zomf -Zomf -Zlinker DISABLE -Zlinker 1121 -lpthread -lcx @CMakeFiles/ctresalloc.dir/objects1.rsp -o ../../bin/ctresalloc.exe   ../../Source/CTestLib.a ../../Source/CMakeLib.a ../../Source/kwsys/cmsys.a ../../Utilities/std/cmstd.a ../../Utilities/cmexpat/cmexpat.a ../../Utilities/cmlibarchive/libarchive/cmlibarchive.a ../../Utilities/cmliblzma/cmliblzma.a ../../Utilities/cmzstd/cmzstd.a ../../Utilities/cmbzip2/cmbzip2.a ../../Utilities/cmjsoncpp/cmjsoncpp.a ../../Utilities/cmlibuv/cmlibuv.a ../../Utilities/cmlibrhash/cmlibrhash.a -lpthreads ../../Utilities/cmcurl/lib/cmcurl.a ../../Utilities/cmzlib/cmzlib.a -lsocket u:/extras/lib/libssl.lib u:/extras/lib/libcrypto.lib  ../../bin/ctresalloc.def
+	cd U:/DEV/cmake-os2/Tests/RunCMake && echo NAME \"ctresalloc\" > ../../bin/ctresalloc.def && echo DESCRIPTION \"@#cmake build system:0.0#@##1## 25 Nov 2022 07:14:51\ \ \ \ \ Process terminated due to: Segmentation fault::::0::@@ctresalloc\" >> ../../bin/ctresalloc.def && echo >> ../../bin/ctresalloc.def && U:/usr/local1220/bin/g++.exe -Zomf -Zomf -Zlinker DISABLE -Zlinker 1121 -lpthread -lcx @CMakeFiles/ctresalloc.dir/objects1.rsp -o ../../bin/ctresalloc.exe   ../../Source/CTestLib.a ../../Source/CMakeLib.a ../../Source/kwsys/cmsys.a ../../Utilities/std/cmstd.a ../../Utilities/cmexpat/cmexpat.a ../../Utilities/cmlibarchive/libarchive/cmlibarchive.a ../../Utilities/cmliblzma/cmliblzma.a ../../Utilities/cmzstd/cmzstd.a ../../Utilities/cmbzip2/cmbzip2.a ../../Utilities/cmjsoncpp/cmjsoncpp.a ../../Utilities/cmlibuv/cmlibuv.a ../../Utilities/cmlibrhash/cmlibrhash.a -lpthreads ../../Utilities/cmcurl/lib/cmcurl.a ../../Utilities/cmzlib/cmzlib.a -lsocket u:/extras/lib/libssl.lib u:/extras/lib/libcrypto.lib ../../Utilities/cmnghttp2/cmnghttp2.a  ../../bin/ctresalloc.def
 
 # Rule to build all files generated by this target.
 Tests/RunCMake/CMakeFiles/ctresalloc.dir/build: bin/ctresalloc.exe

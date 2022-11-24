@@ -7,6 +7,13 @@ if(make_program)
   set(maybe_make_program "-DCMAKE_MAKE_PROGRAM=${make_program}")
 endif()
 
+set(_isMultiConfig "0")
+if(_isMultiConfig)
+  set(cfg_opts "-DCMAKE_CONFIGURATION_TYPES=Debug\\;Release\\;RelWithDebInfo")
+else()
+  set(cfg_opts)
+endif()
+
 set(source_dir "U:/DEV/cmake-os2/Tests/CMakeOnly/${TEST_SOURCE}")
 set(binary_dir "U:/DEV/cmake-os2/Tests/CMakeOnly/${TEST}-build")
 file(REMOVE_RECURSE "${binary_dir}")
@@ -16,6 +23,7 @@ execute_process(
   "${source_dir}" -G "Unix Makefiles"
   -A ""
   -T ""
+  ${cfg_opts}
   ${maybe_make_program}
   WORKING_DIRECTORY "${binary_dir}"
   RESULT_VARIABLE result

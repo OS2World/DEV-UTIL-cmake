@@ -1,8 +1,0 @@
--IU:/DEV/cmake-os2/Utilities
--IU:/DEV/cmake-os2/Source
--IU:/DEV/cmake-os2/Source/LexerParser
--IU:/DEV/cmake-os2/Source/CTest
--IU:/DEV/cmake-os2/Source/CPack
--isystem
-U:/DEV/cmake-os2/Utilities/std
-

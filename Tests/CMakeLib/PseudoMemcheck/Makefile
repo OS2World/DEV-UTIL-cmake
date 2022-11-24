@@ -17,8 +17,25 @@ default_target: all
 .SUFFIXES:
 
 
-# Remove some rules from gmake that .SUFFIXES does not remove.
-SUFFIXES =
+# Disable VCS-based implicit rules.
+% : %,v
+
+
+# Disable VCS-based implicit rules.
+% : RCS/%
+
+
+# Disable VCS-based implicit rules.
+% : RCS/%,v
+
+
+# Disable VCS-based implicit rules.
+% : SCCS/s.%
+
+
+# Disable VCS-based implicit rules.
+% : s.%
+
 
 .SUFFIXES: .hpux_make_needs_suffix_list
 
@@ -26,9 +43,8 @@ SUFFIXES =
 # Command-line flag to silence nested $(MAKE).
 $(VERBOSE)MAKESILENT = -s
 
-# Suppress display of executed commands.
+#Suppress display of executed commands.
 $(VERBOSE).SILENT:
-
 
 # A target that is always out of date.
 cmake_force:
@@ -45,7 +61,7 @@ SHELL = sh
 CMAKE_COMMAND = U:/dev/cmake-os2/Bootstrap.cmk/cmake.exe
 
 # The command to remove a file.
-RM = U:/dev/cmake-os2/Bootstrap.cmk/cmake.exe -E remove -f
+RM = U:/dev/cmake-os2/Bootstrap.cmk/cmake.exe -E rm -f
 
 # Escaping for special characters.
 EQUALS = =
@@ -71,71 +87,27 @@ install/strip/fast: preinstall/fast
 	../../../bin/cmake.exe -DCMAKE_INSTALL_DO_STRIP=1 -P cmake_install.cmake
 .PHONY : install/strip/fast
 
-# Special rule for the target list_install_components
-list_install_components:
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Available install components are: \"Unspecified\""
-.PHONY : list_install_components
-
-# Special rule for the target list_install_components
-list_install_components/fast: list_install_components
-
-.PHONY : list_install_components/fast
-
-# Special rule for the target package_source
-package_source:
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Run CPack packaging tool for source..."
-	cd U:/DEV/cmake-os2 && U:/DEV/cmake-os2/bin/cpack.exe --config ./CPackSourceConfig.cmake U:/DEV/cmake-os2/CPackSourceConfig.cmake
-.PHONY : package_source
-
-# Special rule for the target package_source
-package_source/fast: package_source
-
-.PHONY : package_source/fast
-
-# Special rule for the target package
-package: preinstall
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Run CPack packaging tool..."
-	cd U:/DEV/cmake-os2 && U:/DEV/cmake-os2/bin/cpack.exe --config ./CPackConfig.cmake
-.PHONY : package
-
-# Special rule for the target package
-package/fast: package
-
-.PHONY : package/fast
-
-# Special rule for the target install/local
-install/local: preinstall
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Installing only the local directory..."
-	../../../bin/cmake.exe -DCMAKE_INSTALL_LOCAL_ONLY=1 -P cmake_install.cmake
-.PHONY : install/local
-
-# Special rule for the target install/local
-install/local/fast: preinstall/fast
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Installing only the local directory..."
-	../../../bin/cmake.exe -DCMAKE_INSTALL_LOCAL_ONLY=1 -P cmake_install.cmake
-.PHONY : install/local/fast
-
-# Special rule for the target rebuild_cache
-rebuild_cache:
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Running CMake to regenerate build system..."
-	../../../Bootstrap.cmk/cmake.exe -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)
-.PHONY : rebuild_cache
-
-# Special rule for the target rebuild_cache
-rebuild_cache/fast: rebuild_cache
-
-.PHONY : rebuild_cache/fast
-
 # Special rule for the target edit_cache
 edit_cache:
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "No interactive CMake dialog available..."
-	../../../Bootstrap.cmk/cmake.exe -E echo No\ interactive\ CMake\ dialog\ available.
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Running CMake cache editor..."
+	../../../bin/ccmake.exe -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)
 .PHONY : edit_cache
 
 # Special rule for the target edit_cache
 edit_cache/fast: edit_cache
 
 .PHONY : edit_cache/fast
+
+# Special rule for the target rebuild_cache
+rebuild_cache:
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Running CMake to regenerate build system..."
+	../../../Bootstrap.cmk/cmake.exe --regenerate-during-build -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)
+.PHONY : rebuild_cache
+
+# Special rule for the target rebuild_cache
+rebuild_cache/fast: rebuild_cache
+
+.PHONY : rebuild_cache/fast
 
 # Special rule for the target install
 install: preinstall
@@ -149,6 +121,40 @@ install/fast: preinstall/fast
 	../../../bin/cmake.exe -P cmake_install.cmake
 .PHONY : install/fast
 
+# Special rule for the target install/local
+install/local: preinstall
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Installing only the local directory..."
+	../../../bin/cmake.exe -DCMAKE_INSTALL_LOCAL_ONLY=1 -P cmake_install.cmake
+.PHONY : install/local
+
+# Special rule for the target install/local
+install/local/fast: preinstall/fast
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Installing only the local directory..."
+	../../../bin/cmake.exe -DCMAKE_INSTALL_LOCAL_ONLY=1 -P cmake_install.cmake
+.PHONY : install/local/fast
+
+# Special rule for the target package
+package: preinstall
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Run CPack packaging tool..."
+	cd U:/DEV/cmake-os2 && U:/DEV/cmake-os2/bin/cpack.exe --config ./CPackConfig.cmake
+.PHONY : package
+
+# Special rule for the target package
+package/fast: package
+
+.PHONY : package/fast
+
+# Special rule for the target package_source
+package_source:
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Run CPack packaging tool for source..."
+	cd U:/DEV/cmake-os2 && U:/DEV/cmake-os2/bin/cpack.exe --config ./CPackSourceConfig.cmake U:/DEV/cmake-os2/CPackSourceConfig.cmake
+.PHONY : package_source
+
+# Special rule for the target package_source
+package_source/fast: package_source
+
+.PHONY : package_source/fast
+
 # Special rule for the target test
 test:
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Running tests..."
@@ -160,9 +166,19 @@ test/fast: test
 
 .PHONY : test/fast
 
+# Special rule for the target list_install_components
+list_install_components:
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Available install components are: \"Unspecified\""
+.PHONY : list_install_components
+
+# Special rule for the target list_install_components
+list_install_components/fast: list_install_components
+
+.PHONY : list_install_components/fast
+
 # The main all target
 all: cmake_check_build_system
-	cd U:/DEV/cmake-os2 && $(CMAKE_COMMAND) -E cmake_progress_start U:/DEV/cmake-os2/CMakeFiles U:/DEV/cmake-os2/Tests/CMakeLib/PseudoMemcheck/CMakeFiles/progress.marks
+	cd U:/DEV/cmake-os2 && $(CMAKE_COMMAND) -E cmake_progress_start U:/DEV/cmake-os2/CMakeFiles U:/DEV/cmake-os2/Tests/CMakeLib/PseudoMemcheck//CMakeFiles/progress.marks
 	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 Tests/CMakeLib/PseudoMemcheck/all
 	$(CMAKE_COMMAND) -E cmake_progress_start U:/DEV/cmake-os2/CMakeFiles 0
 .PHONY : all
@@ -193,34 +209,19 @@ depend:
 .PHONY : depend
 
 # Convenience name for target.
-Tests/CMakeLib/PseudoMemcheck/CMakeFiles/memcheck_fail.dir/rule:
-	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 Tests/CMakeLib/PseudoMemcheck/CMakeFiles/memcheck_fail.dir/rule
-.PHONY : Tests/CMakeLib/PseudoMemcheck/CMakeFiles/memcheck_fail.dir/rule
+Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_valgrind.dir/rule:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_valgrind.dir/rule
+.PHONY : Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_valgrind.dir/rule
 
 # Convenience name for target.
-memcheck_fail: Tests/CMakeLib/PseudoMemcheck/CMakeFiles/memcheck_fail.dir/rule
+pseudo_valgrind: Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_valgrind.dir/rule
 
-.PHONY : memcheck_fail
+.PHONY : pseudo_valgrind
 
 # fast build rule for target.
-memcheck_fail/fast:
-	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/memcheck_fail.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/memcheck_fail.dir/build
-.PHONY : memcheck_fail/fast
-
-# Convenience name for target.
-Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/rule:
-	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/rule
-.PHONY : Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/rule
-
-# Convenience name for target.
-pseudo_BC: Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/rule
-
-.PHONY : pseudo_BC
-
-# fast build rule for target.
-pseudo_BC/fast:
-	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/build
-.PHONY : pseudo_BC/fast
+pseudo_valgrind/fast:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_valgrind.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_valgrind.dir/build
+.PHONY : pseudo_valgrind/fast
 
 # Convenience name for target.
 Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_purify.dir/rule:
@@ -238,19 +239,49 @@ pseudo_purify/fast:
 .PHONY : pseudo_purify/fast
 
 # Convenience name for target.
-Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_valgrind.dir/rule:
-	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_valgrind.dir/rule
-.PHONY : Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_valgrind.dir/rule
+Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/rule:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/rule
+.PHONY : Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/rule
 
 # Convenience name for target.
-pseudo_valgrind: Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_valgrind.dir/rule
+pseudo_BC: Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/rule
 
-.PHONY : pseudo_valgrind
+.PHONY : pseudo_BC
 
 # fast build rule for target.
-pseudo_valgrind/fast:
-	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_valgrind.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_valgrind.dir/build
-.PHONY : pseudo_valgrind/fast
+pseudo_BC/fast:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/build
+.PHONY : pseudo_BC/fast
+
+# Convenience name for target.
+Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_cuda-memcheck.dir/rule:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_cuda-memcheck.dir/rule
+.PHONY : Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_cuda-memcheck.dir/rule
+
+# Convenience name for target.
+pseudo_cuda-memcheck: Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_cuda-memcheck.dir/rule
+
+.PHONY : pseudo_cuda-memcheck
+
+# fast build rule for target.
+pseudo_cuda-memcheck/fast:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_cuda-memcheck.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_cuda-memcheck.dir/build
+.PHONY : pseudo_cuda-memcheck/fast
+
+# Convenience name for target.
+Tests/CMakeLib/PseudoMemcheck/CMakeFiles/memcheck_fail.dir/rule:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 Tests/CMakeLib/PseudoMemcheck/CMakeFiles/memcheck_fail.dir/rule
+.PHONY : Tests/CMakeLib/PseudoMemcheck/CMakeFiles/memcheck_fail.dir/rule
+
+# Convenience name for target.
+memcheck_fail: Tests/CMakeLib/PseudoMemcheck/CMakeFiles/memcheck_fail.dir/rule
+
+.PHONY : memcheck_fail
+
+# fast build rule for target.
+memcheck_fail/fast:
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/memcheck_fail.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/memcheck_fail.dir/build
+.PHONY : memcheck_fail/fast
 
 ret0.o: ret0.cxx.o
 
@@ -258,9 +289,10 @@ ret0.o: ret0.cxx.o
 
 # target to build an object file
 ret0.cxx.o:
-	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/ret0.cxx.o
-	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_purify.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_purify.dir/ret0.cxx.o
 	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_valgrind.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_valgrind.dir/ret0.cxx.o
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_purify.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_purify.dir/ret0.cxx.o
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/ret0.cxx.o
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_cuda-memcheck.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_cuda-memcheck.dir/ret0.cxx.o
 .PHONY : ret0.cxx.o
 
 ret0.i: ret0.cxx.i
@@ -269,9 +301,10 @@ ret0.i: ret0.cxx.i
 
 # target to preprocess a source file
 ret0.cxx.i:
-	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/ret0.cxx.i
-	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_purify.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_purify.dir/ret0.cxx.i
 	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_valgrind.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_valgrind.dir/ret0.cxx.i
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_purify.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_purify.dir/ret0.cxx.i
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/ret0.cxx.i
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_cuda-memcheck.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_cuda-memcheck.dir/ret0.cxx.i
 .PHONY : ret0.cxx.i
 
 ret0.s: ret0.cxx.s
@@ -280,9 +313,10 @@ ret0.s: ret0.cxx.s
 
 # target to generate assembly for a file
 ret0.cxx.s:
-	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/ret0.cxx.s
-	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_purify.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_purify.dir/ret0.cxx.s
 	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_valgrind.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_valgrind.dir/ret0.cxx.s
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_purify.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_purify.dir/ret0.cxx.s
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_BC.dir/ret0.cxx.s
+	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_cuda-memcheck.dir/build.make Tests/CMakeLib/PseudoMemcheck/CMakeFiles/pseudo_cuda-memcheck.dir/ret0.cxx.s
 .PHONY : ret0.cxx.s
 
 ret1.o: ret1.cxx.o
@@ -318,18 +352,19 @@ help:
 	@echo "... all (the default if no target is provided)"
 	@echo "... clean"
 	@echo "... depend"
+	@echo "... edit_cache"
+	@echo "... install"
+	@echo "... install/local"
 	@echo "... install/strip"
 	@echo "... list_install_components"
-	@echo "... package_source"
 	@echo "... package"
-	@echo "... install/local"
+	@echo "... package_source"
 	@echo "... rebuild_cache"
-	@echo "... memcheck_fail"
-	@echo "... edit_cache"
-	@echo "... pseudo_BC"
-	@echo "... pseudo_purify"
-	@echo "... install"
 	@echo "... test"
+	@echo "... memcheck_fail"
+	@echo "... pseudo_BC"
+	@echo "... pseudo_cuda-memcheck"
+	@echo "... pseudo_purify"
 	@echo "... pseudo_valgrind"
 	@echo "... ret0.o"
 	@echo "... ret0.i"

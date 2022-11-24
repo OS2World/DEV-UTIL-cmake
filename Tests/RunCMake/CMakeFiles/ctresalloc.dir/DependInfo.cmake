@@ -16,10 +16,10 @@ set(CMAKE_TARGET_DEFINITIONS_CXX
 
 # The include file search paths:
 set(CMAKE_CXX_TARGET_INCLUDE_PATH
-  "Utilities"
   "Source"
   "Source/CTest"
   "Utilities/std"
+  "Utilities"
   )
 
 # Targets to which this target links.
@@ -38,6 +38,7 @@ set(CMAKE_TARGET_LINKED_INFO_FILES
   "U:/DEV/cmake-os2/Utilities/cmlibrhash/CMakeFiles/cmlibrhash.dir/DependInfo.cmake"
   "U:/DEV/cmake-os2/Utilities/cmcurl/lib/CMakeFiles/cmcurl.dir/DependInfo.cmake"
   "U:/DEV/cmake-os2/Utilities/cmzlib/CMakeFiles/cmzlib.dir/DependInfo.cmake"
+  "U:/DEV/cmake-os2/Utilities/cmnghttp2/CMakeFiles/cmnghttp2.dir/DependInfo.cmake"
   )
 
 # Fortran module output directory.

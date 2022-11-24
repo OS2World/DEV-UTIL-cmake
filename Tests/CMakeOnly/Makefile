@@ -17,8 +17,25 @@ default_target: all
 .SUFFIXES:
 
 
-# Remove some rules from gmake that .SUFFIXES does not remove.
-SUFFIXES =
+# Disable VCS-based implicit rules.
+% : %,v
+
+
+# Disable VCS-based implicit rules.
+% : RCS/%
+
+
+# Disable VCS-based implicit rules.
+% : RCS/%,v
+
+
+# Disable VCS-based implicit rules.
+% : SCCS/s.%
+
+
+# Disable VCS-based implicit rules.
+% : s.%
+
 
 .SUFFIXES: .hpux_make_needs_suffix_list
 
@@ -26,9 +43,8 @@ SUFFIXES =
 # Command-line flag to silence nested $(MAKE).
 $(VERBOSE)MAKESILENT = -s
 
-# Suppress display of executed commands.
+#Suppress display of executed commands.
 $(VERBOSE).SILENT:
-
 
 # A target that is always out of date.
 cmake_force:
@@ -45,7 +61,7 @@ SHELL = sh
 CMAKE_COMMAND = U:/dev/cmake-os2/Bootstrap.cmk/cmake.exe
 
 # The command to remove a file.
-RM = U:/dev/cmake-os2/Bootstrap.cmk/cmake.exe -E remove -f
+RM = U:/dev/cmake-os2/Bootstrap.cmk/cmake.exe -E rm -f
 
 # Escaping for special characters.
 EQUALS = =
@@ -86,7 +102,7 @@ install/local/fast: preinstall/fast
 # Special rule for the target rebuild_cache
 rebuild_cache:
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Running CMake to regenerate build system..."
-	../../Bootstrap.cmk/cmake.exe -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)
+	../../Bootstrap.cmk/cmake.exe --regenerate-during-build -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)
 .PHONY : rebuild_cache
 
 # Special rule for the target rebuild_cache
@@ -96,8 +112,8 @@ rebuild_cache/fast: rebuild_cache
 
 # Special rule for the target edit_cache
 edit_cache:
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "No interactive CMake dialog available..."
-	../../Bootstrap.cmk/cmake.exe -E echo No\ interactive\ CMake\ dialog\ available.
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --cyan "Running CMake cache editor..."
+	../../bin/ccmake.exe -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR)
 .PHONY : edit_cache
 
 # Special rule for the target edit_cache
@@ -162,7 +178,7 @@ package/fast: package
 
 # The main all target
 all: cmake_check_build_system
-	cd U:/DEV/cmake-os2 && $(CMAKE_COMMAND) -E cmake_progress_start U:/DEV/cmake-os2/CMakeFiles U:/DEV/cmake-os2/Tests/CMakeOnly/CMakeFiles/progress.marks
+	cd U:/DEV/cmake-os2 && $(CMAKE_COMMAND) -E cmake_progress_start U:/DEV/cmake-os2/CMakeFiles U:/DEV/cmake-os2/Tests/CMakeOnly//CMakeFiles/progress.marks
 	cd U:/DEV/cmake-os2 && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 Tests/CMakeOnly/all
 	$(CMAKE_COMMAND) -E cmake_progress_start U:/DEV/cmake-os2/CMakeFiles 0
 .PHONY : all
@@ -198,15 +214,15 @@ help:
 	@echo "... all (the default if no target is provided)"
 	@echo "... clean"
 	@echo "... depend"
-	@echo "... install/strip"
-	@echo "... install/local"
-	@echo "... rebuild_cache"
 	@echo "... edit_cache"
 	@echo "... install"
-	@echo "... test"
+	@echo "... install/local"
+	@echo "... install/strip"
 	@echo "... list_install_components"
-	@echo "... package_source"
 	@echo "... package"
+	@echo "... package_source"
+	@echo "... rebuild_cache"
+	@echo "... test"
 .PHONY : help
 
 
